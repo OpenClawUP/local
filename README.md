@@ -10,12 +10,12 @@ One-click install [OpenClaw](https://github.com/openclaw/openclaw) AI assistant 
 ### Option 1: Terminal (copy & paste)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/wolfqing/openclawup-local/main/install.sh | bash
+curl -fsSL https://openclawup.com/get | bash
 ```
 
 ### Option 2: Download & double-click
 
-Download [`install.command`](https://github.com/wolfqing/openclawup-local/releases/latest/download/install.command), then double-click to run.
+Download [`install.command`](https://github.com/OpenClawUP/local/releases/latest/download/install.command), then double-click to run.
 
 ## What it does
 
@@ -64,7 +64,7 @@ Or bring your own API key from OpenAI, Anthropic, Google, or any OpenAI-compatib
 ## Uninstall
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/wolfqing/openclawup-local/main/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/OpenClawUP/local/main/uninstall.sh | bash
 ```
 
 ## Requirements
