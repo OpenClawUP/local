@@ -9,6 +9,8 @@ One-click install [OpenClaw](https://github.com/openclaw/openclaw) AI assistant 
 
 ### Option 1: Terminal (copy & paste)
 
+macOS:
+
 ```bash
 curl -fsSL https://openclawup.com/get | bash
 ```
