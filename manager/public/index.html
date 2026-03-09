@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenClawUP Local</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #07080a;
+      --card: #111214;
+      --card-border: rgba(255,255,255,0.06);
+      --text: #f1f5f9;
+      --text-muted: #64748b;
+      --green: #46ec13;
+      --green-dim: rgba(70,236,19,0.1);
+      --red: #ef4444;
+      --red-dim: rgba(239,68,68,0.1);
+      --blue: #3b82f6;
+      --blue-dim: rgba(59,130,246,0.1);
+      --orange: #f97316;
+      --orange-dim: rgba(249,115,22,0.1);
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 2rem;
+    }
+
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .header h1 span {
+      color: var(--green);
+    }
+
+    .version {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* Cards */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    .card-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 1rem;
+    }
+
+    /* Status */
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .status-row:last-child { margin-bottom: 0; }
+
+    .status-label {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    .status-value {
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.25rem 0.625rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .badge-green {
+      background: var(--green-dim);
+      color: var(--green);
+    }
+
+    .badge-red {
+      background: var(--red-dim);
+      color: var(--red);
+    }
+
+    .badge-blue {
+      background: var(--blue-dim);
+      color: var(--blue);
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot-green { background: var(--green); }
+    .dot-red { background: var(--red); }
+
+    /* Buttons */
+    .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+
+    .btn {
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      background: rgba(255,255,255,0.05);
+      color: var(--text);
+      font-size: 0.8125rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.15);
+    }
+
+    .btn-green {
+      background: rgba(70,236,19,0.1);
+      border-color: rgba(70,236,19,0.2);
+      color: var(--green);
+    }
+
+    .btn-green:hover {
+      background: rgba(70,236,19,0.2);
+    }
+
+    .btn-red {
+      background: rgba(239,68,68,0.1);
+      border-color: rgba(239,68,68,0.2);
+      color: var(--red);
+    }
+
+    .btn-red:hover {
+      background: rgba(239,68,68,0.2);
+    }
+
+    .btn-sm {
+      padding: 0.25rem 0.625rem;
+      font-size: 0.75rem;
+    }
+
+    /* Channel list */
+    .channel-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.625rem 0;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .channel-item:last-child { border-bottom: none; }
+
+    .channel-name {
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-transform: capitalize;
+    }
+
+    /* Model select */
+    .select-wrap {
+      position: relative;
+    }
+
+    select {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      background: rgba(255,255,255,0.05);
+      color: var(--text);
+      font-size: 0.875rem;
+      appearance: none;
+      cursor: pointer;
+    }
+
+    select:focus {
+      outline: none;
+      border-color: var(--green);
+    }
+
+    /* Add channel */
+    .add-form {
+      display: none;
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--card-border);
+    }
+
+    .add-form.show { display: block; }
+
+    .add-form select,
+    .add-form input {
+      width: 100%;
+      margin-bottom: 0.5rem;
+    }
+
+    input[type="text"] {
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      background: rgba(255,255,255,0.05);
+      color: var(--text);
+      font-size: 0.875rem;
+    }
+
+    input[type="text"]:focus {
+      outline: none;
+      border-color: var(--green);
+    }
+
+    input[type="text"]::placeholder {
+      color: var(--text-muted);
+    }
+
+    /* Toggle */
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      background: #333;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .toggle.on { background: var(--green); }
+
+    .toggle-knob {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .toggle.on .toggle-knob { transform: translateX(20px); }
+
+    /* Upgrade banner */
+    .upgrade {
+      background: linear-gradient(135deg, rgba(70,236,19,0.08), rgba(59,130,246,0.08));
+      border: 1px solid rgba(70,236,19,0.15);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      margin-top: 1.5rem;
+      text-align: center;
+    }
+
+    .upgrade p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+
+    .upgrade a {
+      display: inline-block;
+      padding: 0.5rem 1.5rem;
+      background: var(--green);
+      color: #000;
+      font-weight: 600;
+      font-size: 0.875rem;
+      border-radius: 9999px;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+
+    .upgrade a:hover { opacity: 0.9; }
+
+    /* Loading */
+    .loading {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-muted);
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      border: 2px solid var(--card-border);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="app">
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>Loading...</p>
+    </div>
+  </div>
+
+  <script>
+    const API = "";
+    const MODELS = [
+      { id: "openclawup/gemini-2.5-flash", name: "Gemini 2.5 Flash", tag: "default" },
+      { id: "openclawup/claude-sonnet-4.5", name: "Claude Sonnet 4.5" },
+      { id: "openclawup/gpt-5", name: "GPT-5" },
+      { id: "openclawup/deepseek-v3", name: "DeepSeek V3" },
+      { id: "openclawup/glm-4.7", name: "GLM-4.7" },
+      { id: "openclawup/minimax-m2.5", name: "MiniMax M2.5" },
+    ];
+
+    const ALL_CHANNELS = [
+      "telegram", "discord", "whatsapp", "slack", "signal",
+      "irc", "matrix", "mattermost", "teams", "google-chat",
+      "line", "feishu", "twitch", "nostr", "webchat",
+    ];
+
+    let state = { running: false, version: "", uptime: "", channels: [], model: "", autoStart: true };
+
+    async function api(path, opts = {}) {
+      const res = await fetch(API + path, {
+        headers: { "Content-Type": "application/json" },
+        ...opts,
+      });
+      return res.json();
+    }
+
+    async function refresh() {
+      state = await api("/api/status");
+      render();
+    }
+
+    async function doAction(action) {
+      await api(`/api/${action}`, { method: "POST" });
+      setTimeout(refresh, 1500);
+    }
+
+    async function changeModel(model) {
+      await api("/api/config/model", { method: "PUT", body: JSON.stringify({ model }) });
+      await doAction("restart");
+    }
+
+    async function toggleAutoStart() {
+      const enabled = !state.autoStart;
+      await api("/api/config/autostart", { method: "PUT", body: JSON.stringify({ enabled }) });
+      state.autoStart = enabled;
+      render();
+    }
+
+    async function removeChannel(channelId) {
+      if (state.channels.length <= 1) {
+        alert("You need at least one channel.");
+        return;
+      }
+      if (!confirm(`Remove ${channelId}?`)) return;
+      await api("/api/config/channel", {
+        method: "PUT",
+        body: JSON.stringify({ action: "remove", channelId }),
+      });
+      await doAction("restart");
+    }
+
+    async function addChannel() {
+      const sel = document.getElementById("new-channel-select");
+      const tokenInput = document.getElementById("new-channel-token");
+      const channelId = sel.value;
+      const token = tokenInput.value.trim();
+
+      const noTokenChannels = ["whatsapp", "signal", "webchat", "nostr"];
+      if (!noTokenChannels.includes(channelId) && !token) {
+        alert("Please enter a bot token.");
+        return;
+      }
+
+      await api("/api/config/channel", {
+        method: "PUT",
+        body: JSON.stringify({ action: "add", channelId, token: token || undefined }),
+      });
+      tokenInput.value = "";
+      document.getElementById("add-form").classList.remove("show");
+      await doAction("restart");
+    }
+
+    function render() {
+      const availableChannels = ALL_CHANNELS.filter(c => !state.channels.includes(c));
+
+      document.getElementById("app").innerHTML = `
+        <div class="header">
+          <h1>OpenClaw<span>UP</span> Local</h1>
+          <span class="version">${state.version}</span>
+        </div>
+
+        <!-- Status -->
+        <div class="card">
+          <div class="card-title">Status</div>
+          <div class="status-row">
+            <span class="status-label">Service</span>
+            <span class="badge ${state.running ? 'badge-green' : 'badge-red'}">
+              <span class="dot ${state.running ? 'dot-green' : 'dot-red'}"></span>
+              ${state.running ? 'Running' : 'Stopped'}
+            </span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Uptime</span>
+            <span class="status-value">${state.uptime || '—'}</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Auto-start on login</span>
+            <div class="toggle ${state.autoStart ? 'on' : ''}" onclick="toggleAutoStart()">
+              <div class="toggle-knob"></div>
+            </div>
+          </div>
+          <div class="btn-row">
+            ${state.running
+              ? `<button class="btn btn-red" onclick="doAction('stop')">Stop</button>
+                 <button class="btn" onclick="doAction('restart')">Restart</button>`
+              : `<button class="btn btn-green" onclick="doAction('start')">Start</button>`
+            }
+          </div>
+        </div>
+
+        <!-- Channels -->
+        <div class="card">
+          <div class="card-title">Channels</div>
+          ${state.channels.map(ch => `
+            <div class="channel-item">
+              <span class="channel-name">${ch}</span>
+              <button class="btn btn-sm btn-red" onclick="removeChannel('${ch}')">Remove</button>
+            </div>
+          `).join("")}
+          ${state.channels.length === 0 ? '<p style="color:var(--text-muted);font-size:0.875rem">No channels configured</p>' : ''}
+          <div class="btn-row">
+            <button class="btn btn-sm btn-green" onclick="document.getElementById('add-form').classList.toggle('show')">+ Add Channel</button>
+          </div>
+          <div class="add-form" id="add-form">
+            <select id="new-channel-select">
+              ${availableChannels.map(c => `<option value="${c}">${c}</option>`).join("")}
+            </select>
+            <input type="text" id="new-channel-token" placeholder="Bot token (if required)">
+            <div class="btn-row">
+              <button class="btn btn-green" onclick="addChannel()">Add</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Model -->
+        <div class="card">
+          <div class="card-title">AI Model</div>
+          <div class="select-wrap">
+            <select onchange="changeModel(this.value)">
+              ${MODELS.map(m => `
+                <option value="${m.id}" ${state.model === m.id ? 'selected' : ''}>
+                  ${m.name}${m.tag ? ` (${m.tag})` : ''}
+                </option>
+              `).join("")}
+            </select>
+          </div>
+          <div style="margin-top:0.75rem">
+            <a href="https://openclawup.com/dashboard/billing" target="_blank"
+               class="btn btn-green" style="text-decoration:none;display:inline-block">
+              Top up credits
+            </a>
+          </div>
+        </div>
+
+        <!-- Upgrade -->
+        <div class="upgrade">
+          <p>Want 24/7 uptime without keeping your Mac on?</p>
+          <a href="https://openclawup.com?ref=local" target="_blank">
+            Upgrade to OpenClawUP Cloud &rarr;
+          </a>
+        </div>
+      `;
+    }
+
+    // Initial load
+    refresh();
+    // Auto-refresh every 30s
+    setInterval(refresh, 30000);
+  </script>
+</body>
+</html>
