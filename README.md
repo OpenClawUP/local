@@ -78,9 +78,19 @@ Or bring your own OpenAI-compatible API key and use any model your provider expo
 
 ## Uninstall
 
+macOS:
+
 ```bash
 curl -fsSL https://openclawup.com/uninstall.sh | bash
 ```
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -Command "irm https://openclawup.com/uninstall.ps1 | iex"
+```
+
+Windows download: [`uninstall.bat`](https://github.com/OpenClawUP/local/releases/latest/download/uninstall.bat)
 
 ## Requirements
 
