@@ -77,6 +77,18 @@
       margin-bottom: 1rem;
     }
 
+    .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .card-head .card-title {
+      margin-bottom: 0;
+    }
+
     /* Status */
     .status-row {
       display: flex;
@@ -181,6 +193,11 @@
       font-size: 0.75rem;
     }
 
+    .btn[disabled] {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
     /* Channel list */
     .channel-item {
       display: flex;
@@ -280,6 +297,179 @@
 
     .toggle.on .toggle-knob { transform: translateX(20px); }
 
+    /* Diagnostics */
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .meta-item {
+      padding: 0.875rem;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--card-border);
+    }
+
+    .meta-label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 0.35rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .meta-value {
+      font-size: 0.875rem;
+      font-weight: 500;
+      word-break: break-word;
+    }
+
+    .checks {
+      display: grid;
+      gap: 0.625rem;
+    }
+
+    .check-item {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.875rem;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--card-border);
+    }
+
+    .check-main {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .check-label {
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .check-detail {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .pill {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 56px;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .pill-ok {
+      background: var(--green-dim);
+      color: var(--green);
+    }
+
+    .pill-warn {
+      background: var(--orange-dim);
+      color: var(--orange);
+    }
+
+    .details {
+      margin-top: 0.875rem;
+    }
+
+    .details summary {
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 0.8125rem;
+      user-select: none;
+    }
+
+    .details-block {
+      margin-top: 0.625rem;
+      padding: 0.875rem;
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      background: rgba(255,255,255,0.02);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.75rem;
+      line-height: 1.6;
+      color: #cbd5e1;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-x: auto;
+    }
+
+    .details-empty {
+      color: var(--text-muted);
+    }
+
+    /* Logs */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.875rem;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .hint {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .log-panel {
+      min-height: 260px;
+      max-height: 420px;
+      overflow: auto;
+      padding: 0.95rem;
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      background: #0b0d10;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.75rem;
+      line-height: 1.55;
+      color: #d8dee9;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .log-meta {
+      margin-top: 0.75rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .empty-state {
+      color: var(--text-muted);
+      font-size: 0.8125rem;
+      padding: 0.25rem 0;
+    }
+
     /* Upgrade banner */
     .upgrade {
       background: linear-gradient(135deg, rgba(70,236,19,0.08), rgba(59,130,246,0.08));
@@ -315,6 +505,36 @@
       text-align: center;
       padding: 3rem;
       color: var(--text-muted);
+    }
+
+    @media (max-width: 720px) {
+      body {
+        padding: 1rem;
+      }
+
+      .container {
+        max-width: 100%;
+      }
+
+      .header,
+      .card-head,
+      .toolbar,
+      .log-meta {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .meta-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .btn-row {
+        flex-wrap: wrap;
+      }
+
+      .check-item {
+        flex-direction: column;
+      }
     }
 
     @keyframes spin {
@@ -382,6 +602,17 @@
       autoStart: true,
       aiMode: "proxy",
       availableModels: [],
+      selectedLogSource: "gateway",
+      logLines: 120,
+      logs: null,
+      diagnostics: null,
+    };
+
+    const LOG_SOURCES = {
+      gateway: "Gateway stdout",
+      gatewayError: "Gateway stderr",
+      manager: "Manager stdout",
+      managerError: "Manager stderr",
     };
 
     async function api(path, opts = {}) {
@@ -393,7 +624,18 @@
     }
 
     async function refresh() {
-      state = await api("/api/status");
+      const [status, logs, diagnostics] = await Promise.all([
+        api("/api/status"),
+        api(`/api/logs?source=${encodeURIComponent(state.selectedLogSource)}&lines=${state.logLines}`),
+        api("/api/diagnostics"),
+      ]);
+      state = {
+        ...status,
+        selectedLogSource: state.selectedLogSource,
+        logLines: state.logLines,
+        logs,
+        diagnostics,
+      };
       render();
     }
 
@@ -448,11 +690,68 @@
       await doAction("restart");
     }
 
+    async function refreshLogs() {
+      state.logs = await api(`/api/logs?source=${encodeURIComponent(state.selectedLogSource)}&lines=${state.logLines}`);
+      render();
+    }
+
+    async function refreshDiagnostics() {
+      state.diagnostics = await api("/api/diagnostics");
+      render();
+    }
+
+    function setLogSource(source) {
+      state.selectedLogSource = source;
+      refreshLogs();
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function formatTimestamp(value) {
+      if (!value) return "Not available";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleString();
+    }
+
+    function copyDiagnostics() {
+      if (!state.diagnostics) return;
+      const payload = {
+        status: {
+          running: state.running,
+          version: state.version,
+          uptime: state.uptime,
+          aiMode: state.aiMode,
+          model: state.model,
+          channels: state.channels,
+        },
+        diagnostics: state.diagnostics,
+      };
+
+      navigator.clipboard.writeText(JSON.stringify(payload, null, 2))
+        .then(() => alert("Diagnostics copied to clipboard."))
+        .catch(() => alert("Failed to copy diagnostics."));
+    }
+
     function render() {
       const availableChannels = ALL_CHANNELS.filter(c => !state.channels.includes(c));
       const models = Array.isArray(state.availableModels) && state.availableModels.length > 0
         ? state.availableModels
         : [{ id: state.model || "unknown", name: state.model || "Unknown model" }];
+      const logInfo = state.logs || { exists: false, content: "", lineCount: 0, path: "", updatedAt: null };
+      const diagnostics = state.diagnostics || {};
+      const checks = Array.isArray(diagnostics.checks) ? diagnostics.checks : [];
+      const envKeys = Array.isArray(diagnostics.env?.keys) ? diagnostics.env.keys : [];
+      const envMasked = diagnostics.env?.masked || {};
+      const paths = diagnostics.paths || {};
+      const service = diagnostics.service || {};
       const creditAction = state.aiMode === "proxy"
         ? `<div style="margin-top:0.75rem">
              <a href="https://openclawup.com/dashboard/billing" target="_blank"
@@ -533,9 +832,96 @@
                   ${m.name}${m.tag ? ` (${m.tag})` : ''}
                 </option>
               `).join("")}
-            </select>
+           </select>
           </div>
           ${creditAction}
+        </div>
+
+        <!-- Logs -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Logs</div>
+            <button class="btn btn-sm" onclick="refreshLogs()">Refresh logs</button>
+          </div>
+          <div class="toolbar">
+            <div class="toolbar-group">
+              <select onchange="setLogSource(this.value)">
+                ${Object.entries(LOG_SOURCES).map(([id, label]) => `
+                  <option value="${id}" ${state.selectedLogSource === id ? 'selected' : ''}>${label}</option>
+                `).join("")}
+              </select>
+            </div>
+            <span class="hint">Showing last ${state.logLines} lines</span>
+          </div>
+          <div class="log-panel">${logInfo.exists
+            ? escapeHtml(logInfo.content || "Log file is empty.")
+            : escapeHtml("Log file not found yet. Start the service and refresh to collect output.")}</div>
+          <div class="log-meta">
+            <span>${escapeHtml(logInfo.path || "Unknown path")}</span>
+            <span>${logInfo.exists ? `${logInfo.lineCount} lines • updated ${formatTimestamp(logInfo.updatedAt)}` : "Waiting for first log file"}</span>
+          </div>
+        </div>
+
+        <!-- Diagnostics -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Diagnostics</div>
+            <div class="toolbar-group">
+              <button class="btn btn-sm" onclick="refreshDiagnostics()">Refresh checks</button>
+              <button class="btn btn-sm btn-green" onclick="copyDiagnostics()" ${state.diagnostics ? "" : "disabled"}>Copy JSON</button>
+            </div>
+          </div>
+          <div class="meta-grid">
+            <div class="meta-item">
+              <span class="meta-label">OpenClaw</span>
+              <span class="meta-value">${escapeHtml(diagnostics.openclawVersion || state.version || "unknown")}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Node</span>
+              <span class="meta-value">${escapeHtml(diagnostics.nodeVersion || "unknown")}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Platform</span>
+              <span class="meta-value">${escapeHtml(diagnostics.platform || "unknown")}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Generated</span>
+              <span class="meta-value">${escapeHtml(formatTimestamp(diagnostics.generatedAt))}</span>
+            </div>
+          </div>
+          <div class="checks">
+            ${checks.length > 0 ? checks.map(check => `
+              <div class="check-item">
+                <div class="check-main">
+                  <div class="check-label">${escapeHtml(check.label || check.id || "Check")}</div>
+                  <div class="check-detail">${escapeHtml(check.detail || "No detail provided.")}</div>
+                </div>
+                <span class="pill ${check.ok ? 'pill-ok' : 'pill-warn'}">${check.ok ? 'OK' : 'Warn'}</span>
+              </div>
+            `).join("") : '<div class="empty-state">Diagnostics are not available yet.</div>'}
+          </div>
+          <details class="details">
+            <summary>Environment keys</summary>
+            <div class="details-block ${envKeys.length === 0 ? 'details-empty' : ''}">${envKeys.length > 0
+              ? escapeHtml(envKeys.map(key => `${key}=${envMasked[key] || "****"}`).join("\n"))
+              : "No environment variables found."}</div>
+          </details>
+          <details class="details">
+            <summary>Paths and services</summary>
+            <div class="details-block">${escapeHtml([
+              `openclawDir: ${paths.openclawDir || "unknown"}`,
+              `managerDir: ${paths.managerDir || "unknown"}`,
+              `configPath: ${paths.configPath || "unknown"}`,
+              `envPath: ${paths.envPath || "unknown"}`,
+              `openclawLaunchAgent: ${paths.openclawLaunchAgent || "unknown"}`,
+              `managerLaunchAgent: ${paths.managerLaunchAgent || "unknown"}`,
+              "",
+              `openclawLoaded: ${service.openclaw?.loaded ? "yes" : "no"}`,
+              `openclawDetails: ${service.openclaw?.details || "unknown"}`,
+              `managerLoaded: ${service.manager?.loaded ? "yes" : "no"}`,
+              `managerDetails: ${service.manager?.details || "unknown"}`,
+            ].join("\n"))}</div>
+          </details>
         </div>
 
         <!-- Upgrade -->

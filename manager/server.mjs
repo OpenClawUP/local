@@ -1,13 +1,22 @@
 import { createServer } from "node:http";
 import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 
 const PORT = process.env.PORT || 8080;
 const OPENCLAW_DIR = process.env.OPENCLAW_DIR || join(process.env.HOME, ".openclaw");
 const CONFIG_PATH = join(OPENCLAW_DIR, "openclaw.json");
 const ENV_PATH = join(OPENCLAW_DIR, ".env");
 const PUBLIC_DIR = join(import.meta.dirname, "public");
+const MANAGER_DIR = process.cwd();
+const OPENCLAW_PLIST_PATH = join(process.env.HOME, "Library/LaunchAgents/com.openclawup.openclaw.plist");
+const MANAGER_PLIST_PATH = join(process.env.HOME, "Library/LaunchAgents/com.openclawup.manager.plist");
+const LOG_SOURCES = {
+  gateway: join(OPENCLAW_DIR, "logs", "gateway.log"),
+  gatewayError: join(OPENCLAW_DIR, "logs", "gateway.err"),
+  manager: join(MANAGER_DIR, "manager.log"),
+  managerError: join(MANAGER_DIR, "manager.err"),
+};
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -52,6 +61,67 @@ function writeEnv(env) {
   writeFileSync(ENV_PATH, content + "\n", "utf-8");
 }
 
+function maskValue(value) {
+  if (typeof value !== "string" || value.length === 0) return "****";
+  return value.length > 8 ? `${value.slice(0, 4)}...${value.slice(-4)}` : "****";
+}
+
+function readLogTail(filePath, maxLines = 120) {
+  if (!existsSync(filePath)) {
+    return {
+      path: filePath,
+      exists: false,
+      updatedAt: null,
+      content: "",
+      lineCount: 0,
+    };
+  }
+
+  let raw = "";
+
+  try {
+    raw = execFileSync("tail", ["-n", String(maxLines), filePath], {
+      encoding: "utf-8",
+    });
+  } catch {
+    raw = readFileSync(filePath, "utf-8");
+  }
+
+  const lines = raw.split("\n");
+  if (lines.at(-1) === "") lines.pop();
+
+  return {
+    path: filePath,
+    exists: true,
+    updatedAt: new Date(statSync(filePath).mtimeMs).toISOString(),
+    content: lines.join("\n"),
+    lineCount: lines.length,
+  };
+}
+
+function listEnvKeys(env) {
+  return Object.keys(env)
+    .filter((key) => !key.startsWith("#"))
+    .sort();
+}
+
+function getLaunchctlStatus(label) {
+  try {
+    const output = execSync(`launchctl list ${label} 2>/dev/null`, {
+      encoding: "utf-8",
+    });
+    return {
+      loaded: true,
+      details: output.trim() || "loaded",
+    };
+  } catch {
+    return {
+      loaded: false,
+      details: "not loaded",
+    };
+  }
+}
+
 function isOpenClawRunning() {
   try {
     const result = execSync("launchctl list com.openclawup.openclaw 2>/dev/null", { encoding: "utf-8" });
@@ -71,9 +141,8 @@ function getOpenClawVersion() {
 
 function getUptime() {
   try {
-    const plistPath = join(process.env.HOME, "Library/LaunchAgents/com.openclawup.openclaw.plist");
-    if (!existsSync(plistPath)) return null;
-    const stat = statSync(plistPath);
+    if (!existsSync(OPENCLAW_PLIST_PATH)) return null;
+    const stat = statSync(OPENCLAW_PLIST_PATH);
     return Date.now() - stat.mtimeMs;
   } catch {
     return null;
@@ -115,6 +184,106 @@ function extractAvailableModels(config) {
   return items;
 }
 
+function buildDiagnostics() {
+  const config = readConfig();
+  const env = readEnv();
+  const running = isOpenClawRunning();
+  const gatewayLog = readLogTail(LOG_SOURCES.gateway, 40);
+  const gatewayErrorLog = readLogTail(LOG_SOURCES.gatewayError, 40);
+  const managerLog = readLogTail(LOG_SOURCES.manager, 40);
+  const managerErrorLog = readLogTail(LOG_SOURCES.managerError, 40);
+  const openclawLaunchctl = getLaunchctlStatus("com.openclawup.openclaw");
+  const managerLaunchctl = getLaunchctlStatus("com.openclawup.manager");
+  const availableModels = extractAvailableModels(config);
+  const channels = Object.entries(config?.channels ?? {})
+    .filter(([, value]) => value?.enabled !== false)
+    .map(([channelId]) => channelId);
+
+  const checks = [
+    {
+      id: "config",
+      label: "Config file",
+      ok: existsSync(CONFIG_PATH),
+      detail: CONFIG_PATH,
+    },
+    {
+      id: "env",
+      label: "Env file",
+      ok: existsSync(ENV_PATH),
+      detail: ENV_PATH,
+    },
+    {
+      id: "openclaw_plist",
+      label: "OpenClaw auto-start",
+      ok: existsSync(OPENCLAW_PLIST_PATH),
+      detail: OPENCLAW_PLIST_PATH,
+    },
+    {
+      id: "manager_plist",
+      label: "Manager auto-start",
+      ok: existsSync(MANAGER_PLIST_PATH),
+      detail: MANAGER_PLIST_PATH,
+    },
+    {
+      id: "service",
+      label: "Service status",
+      ok: running,
+      detail: running ? "OpenClaw process appears healthy" : "OpenClaw service is not running",
+    },
+    {
+      id: "channels",
+      label: "Enabled channels",
+      ok: channels.length > 0,
+      detail: channels.length > 0 ? channels.join(", ") : "No enabled channels",
+    },
+    {
+      id: "models",
+      label: "Available models",
+      ok: availableModels.length > 0,
+      detail: availableModels.length > 0 ? availableModels.map((item) => item.id).join(", ") : "No models configured",
+    },
+  ];
+
+  return {
+    generatedAt: new Date().toISOString(),
+    platform: process.platform,
+    nodeVersion: process.version,
+    openclawVersion: getOpenClawVersion(),
+    uptime: formatUptime(getUptime()),
+    running,
+    paths: {
+      openclawDir: OPENCLAW_DIR,
+      managerDir: MANAGER_DIR,
+      configPath: CONFIG_PATH,
+      envPath: ENV_PATH,
+      openclawLaunchAgent: OPENCLAW_PLIST_PATH,
+      managerLaunchAgent: MANAGER_PLIST_PATH,
+    },
+    service: {
+      openclaw: openclawLaunchctl,
+      manager: managerLaunchctl,
+    },
+    configSummary: {
+      currentModel: config?.agents?.defaults?.model?.primary ?? null,
+      availableModels,
+      enabledChannels: channels,
+    },
+    env: {
+      keys: listEnvKeys(env),
+      masked: Object.fromEntries(
+        Object.entries(env).map(([key, value]) => [key, maskValue(value)]),
+      ),
+    },
+    checks,
+    logs: {
+      gateway: gatewayLog,
+      gatewayError: gatewayErrorLog,
+      manager: managerLog,
+      managerError: managerErrorLog,
+    },
+  };
+}
+
 // ── API Routes ──────────────────────────────────────────────
 
 function handleApi(req, res) {
@@ -151,9 +320,7 @@ function handleApi(req, res) {
     const availableModels = extractAvailableModels(config);
 
     // Check auto-start
-    const autoStart = existsSync(
-      join(process.env.HOME, "Library/LaunchAgents/com.openclawup.openclaw.plist")
-    );
+    const autoStart = existsSync(OPENCLAW_PLIST_PATH);
 
     return jsonResponse(res, {
       running,
@@ -165,6 +332,23 @@ function handleApi(req, res) {
       availableModels,
       aiMode: readEnv().OPENCLAWUP_API_KEY ? "proxy" : "byok",
     });
+  }
+
+  // GET /api/logs
+  if (path === "/api/logs" && req.method === "GET") {
+    const source = url.searchParams.get("source") || "gateway";
+    const validSource = Object.hasOwn(LOG_SOURCES, source) ? source : "gateway";
+    const lines = Number.parseInt(url.searchParams.get("lines") || "120", 10);
+    const maxLines = Number.isFinite(lines) ? Math.min(Math.max(lines, 20), 400) : 120;
+    return jsonResponse(res, {
+      source: validSource,
+      ...readLogTail(LOG_SOURCES[validSource], maxLines),
+    });
+  }
+
+  // GET /api/diagnostics
+  if (path === "/api/diagnostics" && req.method === "GET") {
+    return jsonResponse(res, buildDiagnostics());
   }
 
   // POST /api/restart
@@ -204,7 +388,7 @@ function handleApi(req, res) {
     // Mask sensitive values
     const maskedEnv = {};
     for (const [k, v] of Object.entries(env)) {
-      maskedEnv[k] = v.length > 8 ? v.slice(0, 4) + "..." + v.slice(-4) : "****";
+      maskedEnv[k] = maskValue(v);
     }
     return jsonResponse(res, { config, env: maskedEnv });
   }
