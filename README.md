@@ -64,7 +64,7 @@ Or bring your own API key from OpenAI, Anthropic, Google, or any OpenAI-compatib
 ## Uninstall
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OpenClawUP/local/main/uninstall.sh | bash
+curl -fsSL https://openclawup.com/unget | bash
 ```
 
 ## Requirements
