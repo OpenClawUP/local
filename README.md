@@ -24,7 +24,7 @@ The installer will:
 1. **Check & install dependencies** — Node.js 22+ (auto-detected, installed if missing)
 2. **Install OpenClaw** — Latest version via npm
 3. **Configure your channel** — Telegram, Discord, WhatsApp, Slack, Signal, and 15+ more
-4. **Set up AI** — OpenClawUP AI proxy (pay-as-you-go, auto-routing) or bring your own API key
+4. **Set up AI** — OpenClawUP AI proxy (pay-as-you-go, auto-routing) or your own OpenAI-compatible API key
 5. **Start as background service** — Runs automatically on login, survives terminal close
 6. **Install management app** — Find "OpenClawUP Local" in Launchpad to manage everything
 
@@ -41,36 +41,45 @@ From the management page you can:
 - Add or remove chat channels
 - Switch AI models
 - Toggle auto-start on login
-- Top up AI credits
+- Top up OpenClawUP credits when using the proxy
 
-## Supported Channels
+The manager reads available models from your current config, so BYOK setups only show the models you actually configured.
 
-Telegram · Discord · WhatsApp · Slack · Signal · IRC · Matrix · Mattermost · Microsoft Teams · Google Chat · LINE · Feishu · Twitch · Nostr · BlueBubbles · Synology Chat · Nextcloud Talk · Tlon · Zalo · WebChat
+## Channels
+
+Guided setup works best with Telegram, Discord, Slack, WhatsApp, and Signal.
+
+You can also enable additional channels from the local manager, including IRC, Matrix, Mattermost, Microsoft Teams, Google Chat, LINE, Feishu, Twitch, Nostr, BlueBubbles, Synology Chat, Nextcloud Talk, Tlon, Zalo, and WebChat.
 
 ## AI Models
 
-With OpenClawUP AI proxy (recommended):
+With OpenClawUP AI proxy (recommended), the installer configures:
 
-- **Gemini 2.5 Flash** (default) — Best value
-- **Claude Sonnet 4.5** — Best for complex reasoning
-- **GPT-5** — Strong all-rounder
-- **DeepSeek V3** — Great for code
-- **GLM-4.7** / **MiniMax M2.5**
+- **Auto Routing** (default) — Lets OpenClawUP pick the best model automatically
+- **Gemini 3 Flash**
+- **GPT-5.4**
+- **Claude Sonnet 4.6**
+- **DeepSeek V3.2**
+- **Qwen 3.5**
+- **GLM-5**
+- **MiniMax M2.5**
+- **Kimi K2.5**
+- **Claude Opus 4.5**
 
-Auto-routing automatically selects the best model for each conversation.
-
-Or bring your own API key from OpenAI, Anthropic, Google, or any OpenAI-compatible provider.
+Or bring your own OpenAI-compatible API key and use any model your provider exposes.
 
 ## Uninstall
 
 ```bash
-curl -fsSL https://openclawup.com/unget | bash
+curl -fsSL https://openclawup.com/uninstall.sh | bash
 ```
 
 ## Requirements
 
 - macOS 12+ (Intel or Apple Silicon)
 - Internet connection
+
+Windows support is coming soon.
 
 ## How it compares to OpenClawUP Cloud
 

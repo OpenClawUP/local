@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { execSync, exec } from "node:child_process";
+import { execSync } from "node:child_process";
 
 const PORT = process.env.PORT || 8080;
 const OPENCLAW_DIR = process.env.OPENCLAW_DIR || join(process.env.HOME, ".openclaw");
@@ -90,6 +90,31 @@ function formatUptime(ms) {
   return `${mins}m`;
 }
 
+function getChannelEnvKey(channelId) {
+  return `${String(channelId)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "_")}_BOT_TOKEN`;
+}
+
+function extractAvailableModels(config) {
+  const items = [];
+  const providers = config?.models?.providers ?? {};
+
+  for (const [providerId, provider] of Object.entries(providers)) {
+    const models = Array.isArray(provider?.models) ? provider.models : [];
+    for (const model of models) {
+      if (!model?.id) continue;
+      items.push({
+        id: `${providerId}/${model.id}`,
+        name: model.name || model.id,
+        tag: model.id === "auto" ? "default" : undefined,
+      });
+    }
+  }
+
+  return items;
+}
+
 // ── API Routes ──────────────────────────────────────────────
 
 function handleApi(req, res) {
@@ -123,6 +148,7 @@ function handleApi(req, res) {
 
     // Extract current model
     const model = config?.agents?.defaults?.model?.primary || "unknown";
+    const availableModels = extractAvailableModels(config);
 
     // Check auto-start
     const autoStart = existsSync(
@@ -136,6 +162,8 @@ function handleApi(req, res) {
       channels,
       model,
       autoStart,
+      availableModels,
+      aiMode: readEnv().OPENCLAWUP_API_KEY ? "proxy" : "byok",
     });
   }
 
@@ -194,11 +222,11 @@ function handleApi(req, res) {
         if (action === "add") {
           if (!config.channels) config.channels = {};
           const channelConfig = { enabled: true };
+          const envKey = getChannelEnvKey(channelId);
 
           // Set token in env
           if (token) {
             const env = readEnv();
-            const envKey = `${channelId.toUpperCase()}_BOT_TOKEN`;
             env[envKey] = token;
             writeEnv(env);
 
@@ -211,6 +239,8 @@ function handleApi(req, res) {
               channelConfig.token = `\${DISCORD_BOT_TOKEN}`;
             } else if (channelId === "slack") {
               channelConfig.token = `\${SLACK_BOT_TOKEN}`;
+            } else {
+              channelConfig.token = `\${${envKey}}`;
             }
           }
 

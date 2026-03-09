@@ -212,6 +212,14 @@ get_channel_id() {
   echo "$1" | tr '[:upper:]' '[:lower:]' | tr ' ' '-'
 }
 
+get_channel_env_key() {
+  local channel_id
+  channel_id="$1"
+  local normalized
+  normalized=$(printf '%s' "$channel_id" | tr '[:lower:]' '[:upper:]' | sed 's/[^A-Z0-9]/_/g')
+  echo "${normalized}_BOT_TOKEN"
+}
+
 get_bot_token() {
   local channel_id
   channel_id=$(get_channel_id "$SELECTED_CHANNEL")
@@ -259,7 +267,7 @@ select_ai() {
   echo -e "  ${BOLD}AI Model Configuration:${RESET}"
   echo ""
   echo -e "  ${CYAN}[1]${RESET} OpenClawUP AI ${DIM}(recommended, multiple models, auto-routing, pay-as-you-go)${RESET}"
-  echo -e "  ${CYAN}[2]${RESET} Use your own API Key ${DIM}(BYO Key from OpenAI, Anthropic, Google, etc.)${RESET}"
+  echo -e "  ${CYAN}[2]${RESET} Use your own API Key ${DIM}(OpenAI or other OpenAI-compatible provider)${RESET}"
   echo ""
 
   while true; do
@@ -340,10 +348,9 @@ setup_byok_ai() {
   echo ""
   echo -e "  ${BOLD}Select your AI provider:${RESET}"
   echo ""
-  echo -e "  ${CYAN}[1]${RESET} OpenAI (GPT)"
-  echo -e "  ${CYAN}[2]${RESET} Anthropic (Claude)"
-  echo -e "  ${CYAN}[3]${RESET} Google (Gemini)"
-  echo -e "  ${CYAN}[4]${RESET} Other OpenAI-compatible API"
+  echo -e "  ${CYAN}[1]${RESET} OpenAI"
+  echo -e "  ${CYAN}[2]${RESET} OpenRouter"
+  echo -e "  ${CYAN}[3]${RESET} Other OpenAI-compatible API"
   echo ""
 
   read -rp "  Enter number (1): " provider_choice
@@ -351,9 +358,8 @@ setup_byok_ai() {
 
   case "$provider_choice" in
     1) BYOK_PROVIDER="openai";    BYOK_BASE_URL="https://api.openai.com/v1";    BYOK_MODEL="gpt-5" ;;
-    2) BYOK_PROVIDER="anthropic"; BYOK_BASE_URL="https://api.anthropic.com/v1"; BYOK_MODEL="claude-sonnet-4-5-20250514" ;;
-    3) BYOK_PROVIDER="google";    BYOK_BASE_URL="https://generativelanguage.googleapis.com/v1beta"; BYOK_MODEL="gemini-2.5-flash" ;;
-    4)
+    2) BYOK_PROVIDER="openrouter"; BYOK_BASE_URL="https://openrouter.ai/api/v1"; BYOK_MODEL="google/gemini-3-flash-preview" ;;
+    3)
       read -rp "  Base URL: " BYOK_BASE_URL
       read -rp "  Model name: " BYOK_MODEL
       BYOK_PROVIDER="custom"
@@ -375,27 +381,35 @@ generate_config() {
 
   local channel_id
   channel_id=$(get_channel_id "$SELECTED_CHANNEL")
+  local channel_env_key
+  channel_env_key=$(get_channel_env_key "$channel_id")
+  local token_ref
+  printf -v token_ref '${%s}' "$channel_env_key"
 
   # Build channel config
   local channel_block=""
   case "$channel_id" in
     telegram)
-      channel_block="\"telegram\": { \"enabled\": true, \"botToken\": \"\${TELEGRAM_BOT_TOKEN}\", \"dmPolicy\": \"open\", \"streaming\": \"partial\" }"
+      channel_block="\"telegram\": { \"enabled\": true, \"botToken\": \"$token_ref\", \"dmPolicy\": \"open\", \"streaming\": \"partial\" }"
       ;;
     discord)
-      channel_block="\"discord\": { \"enabled\": true, \"token\": \"\${DISCORD_BOT_TOKEN}\" }"
+      channel_block="\"discord\": { \"enabled\": true, \"token\": \"$token_ref\" }"
       ;;
     whatsapp)
       channel_block="\"whatsapp\": { \"enabled\": true, \"dmPolicy\": \"pairing\" }"
       ;;
     slack)
-      channel_block="\"slack\": { \"enabled\": true, \"token\": \"\${SLACK_BOT_TOKEN}\" }"
+      channel_block="\"slack\": { \"enabled\": true, \"token\": \"$token_ref\" }"
       ;;
     signal)
       channel_block="\"signal\": { \"enabled\": true }"
       ;;
     *)
-      channel_block="\"$channel_id\": { \"enabled\": true }"
+      if [[ -n "$BOT_TOKEN" ]]; then
+        channel_block="\"$channel_id\": { \"enabled\": true, \"token\": \"$token_ref\" }"
+      else
+        channel_block="\"$channel_id\": { \"enabled\": true }"
+      fi
       ;;
   esac
 
@@ -408,16 +422,20 @@ generate_config() {
           "apiKey": "${OPENCLAWUP_API_KEY}",
           "api": "openai-completions",
           "models": [
-            { "id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash" },
-            { "id": "claude-sonnet-4.5", "name": "Claude Sonnet 4.5" },
-            { "id": "gpt-5", "name": "GPT-5" },
-            { "id": "deepseek-v3", "name": "DeepSeek V3" },
-            { "id": "glm-4.7", "name": "GLM-4.7" },
-            { "id": "minimax-m2.5", "name": "MiniMax M2.5" }
+            { "id": "auto", "name": "Auto Routing" },
+            { "id": "gemini-3-flash", "name": "Gemini 3 Flash" },
+            { "id": "gpt-5.4", "name": "GPT-5.4" },
+            { "id": "claude-sonnet-4.6", "name": "Claude Sonnet 4.6" },
+            { "id": "deepseek-v3.2", "name": "DeepSeek V3.2" },
+            { "id": "qwen-3.5-plus", "name": "Qwen 3.5" },
+            { "id": "glm-5", "name": "GLM-5" },
+            { "id": "minimax-m2.5", "name": "MiniMax M2.5" },
+            { "id": "kimi-k2.5", "name": "Kimi K2.5" },
+            { "id": "claude-opus-4.5", "name": "Claude Opus 4.5" }
           ]
         }
       }'
-    local default_model="openclawup/gemini-2.5-flash"
+    local default_model="openclawup/auto"
   else
     models_block='"providers": {
         "'"$BYOK_PROVIDER"'": {
@@ -460,11 +478,9 @@ JSONEOF
   fi
 
   # Add bot token
-  case "$channel_id" in
-    telegram) env_content="${env_content}\nTELEGRAM_BOT_TOKEN=${BOT_TOKEN}" ;;
-    discord)  env_content="${env_content}\nDISCORD_BOT_TOKEN=${BOT_TOKEN}" ;;
-    slack)    env_content="${env_content}\nSLACK_BOT_TOKEN=${BOT_TOKEN}" ;;
-  esac
+  if [[ -n "$BOT_TOKEN" ]]; then
+    env_content="${env_content}\n${channel_env_key}=${BOT_TOKEN}"
+  fi
 
   echo -e "$env_content" > "$OPENCLAW_DIR/.env"
 

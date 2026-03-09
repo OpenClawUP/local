@@ -343,22 +343,46 @@
 
   <script>
     const API = "";
-    const MODELS = [
-      { id: "openclawup/gemini-2.5-flash", name: "Gemini 2.5 Flash", tag: "default" },
-      { id: "openclawup/claude-sonnet-4.5", name: "Claude Sonnet 4.5" },
-      { id: "openclawup/gpt-5", name: "GPT-5" },
-      { id: "openclawup/deepseek-v3", name: "DeepSeek V3" },
-      { id: "openclawup/glm-4.7", name: "GLM-4.7" },
-      { id: "openclawup/minimax-m2.5", name: "MiniMax M2.5" },
-    ];
-
     const ALL_CHANNELS = [
       "telegram", "discord", "whatsapp", "slack", "signal",
-      "irc", "matrix", "mattermost", "teams", "google-chat",
-      "line", "feishu", "twitch", "nostr", "webchat",
+      "irc", "matrix", "mattermost", "microsoft-teams", "google-chat",
+      "line", "feishu", "twitch", "nostr", "bluebubbles",
+      "synology-chat", "nextcloud-talk", "tlon", "zalo", "webchat",
     ];
 
-    let state = { running: false, version: "", uptime: "", channels: [], model: "", autoStart: true };
+    const CHANNEL_LABELS = {
+      telegram: "Telegram",
+      discord: "Discord",
+      whatsapp: "WhatsApp",
+      slack: "Slack",
+      signal: "Signal",
+      irc: "IRC",
+      matrix: "Matrix",
+      mattermost: "Mattermost",
+      "microsoft-teams": "Microsoft Teams",
+      "google-chat": "Google Chat",
+      line: "LINE",
+      feishu: "Feishu",
+      twitch: "Twitch",
+      nostr: "Nostr",
+      bluebubbles: "BlueBubbles",
+      "synology-chat": "Synology Chat",
+      "nextcloud-talk": "Nextcloud Talk",
+      tlon: "Tlon",
+      zalo: "Zalo",
+      webchat: "WebChat",
+    };
+
+    let state = {
+      running: false,
+      version: "",
+      uptime: "",
+      channels: [],
+      model: "",
+      autoStart: true,
+      aiMode: "proxy",
+      availableModels: [],
+    };
 
     async function api(path, opts = {}) {
       const res = await fetch(API + path, {
@@ -426,6 +450,19 @@
 
     function render() {
       const availableChannels = ALL_CHANNELS.filter(c => !state.channels.includes(c));
+      const models = Array.isArray(state.availableModels) && state.availableModels.length > 0
+        ? state.availableModels
+        : [{ id: state.model || "unknown", name: state.model || "Unknown model" }];
+      const creditAction = state.aiMode === "proxy"
+        ? `<div style="margin-top:0.75rem">
+             <a href="https://openclawup.com/dashboard/billing" target="_blank"
+                class="btn btn-green" style="text-decoration:none;display:inline-block">
+               Top up OpenClawUP credits
+             </a>
+           </div>`
+        : `<p style="margin-top:0.75rem;color:var(--text-muted);font-size:0.8125rem">
+             Using your own API key. Edit <code>~/.openclaw/openclaw.json</code> to change providers.
+           </p>`;
 
       document.getElementById("app").innerHTML = `
         <div class="header">
@@ -467,7 +504,7 @@
           <div class="card-title">Channels</div>
           ${state.channels.map(ch => `
             <div class="channel-item">
-              <span class="channel-name">${ch}</span>
+              <span class="channel-name">${CHANNEL_LABELS[ch] || ch}</span>
               <button class="btn btn-sm btn-red" onclick="removeChannel('${ch}')">Remove</button>
             </div>
           `).join("")}
@@ -477,7 +514,7 @@
           </div>
           <div class="add-form" id="add-form">
             <select id="new-channel-select">
-              ${availableChannels.map(c => `<option value="${c}">${c}</option>`).join("")}
+              ${availableChannels.map(c => `<option value="${c}">${CHANNEL_LABELS[c] || c}</option>`).join("")}
             </select>
             <input type="text" id="new-channel-token" placeholder="Bot token (if required)">
             <div class="btn-row">
@@ -491,19 +528,14 @@
           <div class="card-title">AI Model</div>
           <div class="select-wrap">
             <select onchange="changeModel(this.value)">
-              ${MODELS.map(m => `
+              ${models.map(m => `
                 <option value="${m.id}" ${state.model === m.id ? 'selected' : ''}>
                   ${m.name}${m.tag ? ` (${m.tag})` : ''}
                 </option>
               `).join("")}
             </select>
           </div>
-          <div style="margin-top:0.75rem">
-            <a href="https://openclawup.com/dashboard/billing" target="_blank"
-               class="btn btn-green" style="text-decoration:none;display:inline-block">
-              Top up credits
-            </a>
-          </div>
+          ${creditAction}
         </div>
 
         <!-- Upgrade -->
