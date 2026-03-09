@@ -1,6 +1,6 @@
 # OpenClawUP Local
 
-One-click install [OpenClaw](https://github.com/openclaw/openclaw) AI assistant on your Mac.
+One-click install [OpenClaw](https://github.com/openclaw/openclaw) AI assistant on your computer.
 
 > Want 24/7 uptime without keeping your computer on?
 > Try [OpenClawUP Cloud](https://openclawup.com) — deploy in 60 seconds, no technical setup needed.
@@ -13,9 +13,17 @@ One-click install [OpenClaw](https://github.com/openclaw/openclaw) AI assistant 
 curl -fsSL https://openclawup.com/get | bash
 ```
 
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/OpenClawUP/local/main/install.ps1 | iex"
+```
+
 ### Option 2: Download & double-click
 
-Download [`install.command`](https://github.com/OpenClawUP/local/releases/latest/download/install.command), then double-click to run.
+macOS: download [`install.command`](https://github.com/OpenClawUP/local/releases/latest/download/install.command), then double-click to run.
+
+Windows: download [`install.bat`](https://github.com/OpenClawUP/local/releases/latest/download/install.bat), then double-click to run.
 
 ## What it does
 
@@ -25,14 +33,14 @@ The installer will:
 2. **Install OpenClaw** — Latest version via npm
 3. **Configure your channel** — Telegram, Discord, WhatsApp, Slack, Signal, and 15+ more
 4. **Set up AI** — OpenClawUP AI proxy (pay-as-you-go, auto-routing) or your own OpenAI-compatible API key
-5. **Start as background service** — Runs automatically on login, survives terminal close
-6. **Install management app** — Find "OpenClawUP Local" in Launchpad to manage everything
+5. **Start as background service** — Runs automatically on sign-in, survives terminal close
+6. **Install management app** — Open `http://localhost:8080` or use the platform shortcut to manage everything
 
 ## Management
 
 After installation, manage your bot through the web interface:
 
-- Open **OpenClawUP Local** from Launchpad, or
+- Open the local shortcut created during install, or
 - Visit `http://localhost:8080`
 
 From the management page you can:
@@ -77,16 +85,15 @@ curl -fsSL https://openclawup.com/uninstall.sh | bash
 ## Requirements
 
 - macOS 12+ (Intel or Apple Silicon)
+- Windows 10/11 with PowerShell 5.1+
 - Internet connection
-
-Windows support is coming soon.
 
 ## How it compares to OpenClawUP Cloud
 
 | | Local (this) | [Cloud](https://openclawup.com) |
 |---|---|---|
 | Price | Free (AI pay-as-you-go) | $49/month (incl. $15 AI credits) |
-| Uptime | While your Mac is on | 24/7 |
+| Uptime | While your computer is on | 24/7 |
 | Setup | 2 minutes | 60 seconds |
 | Channels | All supported | All supported |
 | AI Models | All supported | All supported |

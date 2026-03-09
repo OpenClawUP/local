@@ -776,6 +776,7 @@
       const envMasked = diagnostics.env?.masked || {};
       const paths = diagnostics.paths || {};
       const service = diagnostics.service || {};
+      const configPathHint = paths.configPath || "~/.openclaw/openclaw.json";
       const creditAction = state.aiMode === "proxy"
         ? `<div style="margin-top:0.75rem">
              <a href="https://openclawup.com/dashboard/billing" target="_blank"
@@ -784,8 +785,10 @@
              </a>
            </div>`
         : `<p style="margin-top:0.75rem;color:var(--text-muted);font-size:0.8125rem">
-             Using your own API key. Edit <code>~/.openclaw/openclaw.json</code> to change providers.
+             Using your own API key. Edit <code>${escapeHtml(configPathHint)}</code> to change providers.
            </p>`;
+      const openclawAutoStartPath = paths.openclawAutoStart || paths.openclawLaunchAgent || "unknown";
+      const managerAutoStartPath = paths.managerAutoStart || paths.managerLaunchAgent || "unknown";
 
       document.getElementById("app").innerHTML = `
         <div class="header">
@@ -938,8 +941,8 @@
               `managerDir: ${paths.managerDir || "unknown"}`,
               `configPath: ${paths.configPath || "unknown"}`,
               `envPath: ${paths.envPath || "unknown"}`,
-              `openclawLaunchAgent: ${paths.openclawLaunchAgent || "unknown"}`,
-              `managerLaunchAgent: ${paths.managerLaunchAgent || "unknown"}`,
+              `openclawAutoStart: ${openclawAutoStartPath}`,
+              `managerAutoStart: ${managerAutoStartPath}`,
               "",
               `openclawLoaded: ${service.openclaw?.loaded ? "yes" : "no"}`,
               `openclawDetails: ${service.openclaw?.details || "unknown"}`,
@@ -951,7 +954,7 @@
 
         <!-- Upgrade -->
         <div class="upgrade">
-          <p>Want 24/7 uptime without keeping your Mac on?</p>
+          <p>Want 24/7 uptime without keeping your computer on?</p>
           <a href="https://openclawup.com?ref=local" target="_blank">
             Upgrade to OpenClawUP Cloud &rarr;
           </a>

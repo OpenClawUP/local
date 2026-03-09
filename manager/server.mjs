@@ -5,13 +5,21 @@ import { join } from "node:path";
 import { execFileSync, execSync } from "node:child_process";
 
 const PORT = process.env.PORT || 8080;
-const OPENCLAW_DIR = process.env.OPENCLAW_DIR || join(process.env.HOME, ".openclaw");
+const HOME_DIR = process.env.USERPROFILE || process.env.HOME;
+const IS_WINDOWS = process.platform === "win32";
+const WINDOWS_TASKS = {
+  openclaw: "OpenClawUP-OpenClaw",
+  manager: "OpenClawUP-Manager",
+};
+const OPENCLAW_DIR = process.env.OPENCLAW_DIR || join(HOME_DIR, ".openclaw");
 const CONFIG_PATH = join(OPENCLAW_DIR, "openclaw.json");
 const ENV_PATH = join(OPENCLAW_DIR, ".env");
 const PUBLIC_DIR = join(import.meta.dirname, "public");
-const MANAGER_DIR = process.cwd();
-const OPENCLAW_PLIST_PATH = join(process.env.HOME, "Library/LaunchAgents/com.openclawup.openclaw.plist");
-const MANAGER_PLIST_PATH = join(process.env.HOME, "Library/LaunchAgents/com.openclawup.manager.plist");
+const MANAGER_DIR = process.env.OPENCLAWUP_MANAGER_DIR || process.cwd();
+const OPENCLAW_PLIST_PATH = join(HOME_DIR, "Library/LaunchAgents/com.openclawup.openclaw.plist");
+const MANAGER_PLIST_PATH = join(HOME_DIR, "Library/LaunchAgents/com.openclawup.manager.plist");
+const OPENCLAW_AUTOSTART_REF = IS_WINDOWS ? `Task Scheduler/${WINDOWS_TASKS.openclaw}` : OPENCLAW_PLIST_PATH;
+const MANAGER_AUTOSTART_REF = IS_WINDOWS ? `Task Scheduler/${WINDOWS_TASKS.manager}` : MANAGER_PLIST_PATH;
 const LOG_SOURCES = {
   gateway: join(OPENCLAW_DIR, "logs", "gateway.log"),
   gatewayError: join(OPENCLAW_DIR, "logs", "gateway.err"),
@@ -106,6 +114,22 @@ function listEnvKeys(env) {
     .sort();
 }
 
+function runPowerShell(script) {
+  return execFileSync(
+    "powershell.exe",
+    ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+    { encoding: "utf-8" },
+  );
+}
+
+function parseJsonOutput(raw, fallback) {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
 function getLaunchctlStatus(label) {
   try {
     const output = execSync(`launchctl list ${label} 2>/dev/null`, {
@@ -123,7 +147,66 @@ function getLaunchctlStatus(label) {
   }
 }
 
+function getWindowsTaskInfo(taskName) {
+  if (!IS_WINDOWS) return null;
+
+  try {
+    const script = `
+      $task = Get-ScheduledTask -TaskName '${taskName}' -ErrorAction SilentlyContinue
+      if ($null -eq $task) {
+        @{ exists = $false; enabled = $false; state = 'missing'; lastRunTime = $null; lastTaskResult = $null } | ConvertTo-Json -Compress
+        exit
+      }
+      $info = Get-ScheduledTaskInfo -TaskName '${taskName}' -ErrorAction SilentlyContinue
+      @{
+        exists = $true
+        enabled = [bool]$task.Settings.Enabled
+        state = [string]$task.State
+        lastRunTime = if ($info -and $info.LastRunTime -gt [datetime]::MinValue) { $info.LastRunTime.ToString('o') } else { $null }
+        lastTaskResult = if ($info) { [int]$info.LastTaskResult } else { $null }
+      } | ConvertTo-Json -Compress
+    `;
+
+    return parseJsonOutput(runPowerShell(script).trim(), {
+      exists: false,
+      enabled: false,
+      state: "unknown",
+      lastRunTime: null,
+      lastTaskResult: null,
+    });
+  } catch {
+    return {
+      exists: false,
+      enabled: false,
+      state: "unknown",
+      lastRunTime: null,
+      lastTaskResult: null,
+    };
+  }
+}
+
+function getServiceStatus(service) {
+  if (IS_WINDOWS) {
+    const info = getWindowsTaskInfo(WINDOWS_TASKS[service]);
+    return {
+      loaded: Boolean(info?.exists && info?.enabled),
+      details: info?.exists
+        ? `${info.state}${info.enabled ? "" : " (disabled)"}`
+        : "not registered",
+    };
+  }
+
+  return getLaunchctlStatus(
+    service === "openclaw" ? "com.openclawup.openclaw" : "com.openclawup.manager",
+  );
+}
+
 function isOpenClawRunning() {
+  if (IS_WINDOWS) {
+    const info = getWindowsTaskInfo(WINDOWS_TASKS.openclaw);
+    return info?.state === "Running";
+  }
+
   try {
     const result = execSync("launchctl list com.openclawup.openclaw 2>/dev/null", { encoding: "utf-8" });
     return !result.includes('"LastExitStatus" = -1');
@@ -141,6 +224,13 @@ function getOpenClawVersion() {
 }
 
 function getUptime() {
+  if (IS_WINDOWS) {
+    const info = getWindowsTaskInfo(WINDOWS_TASKS.openclaw);
+    if (!info?.lastRunTime) return null;
+    const startedAt = Date.parse(info.lastRunTime);
+    return Number.isFinite(startedAt) ? Date.now() - startedAt : null;
+  }
+
   try {
     if (!existsSync(OPENCLAW_PLIST_PATH)) return null;
     const stat = statSync(OPENCLAW_PLIST_PATH);
@@ -185,6 +275,91 @@ function extractAvailableModels(config) {
   return items;
 }
 
+function getAutoStartEnabled() {
+  if (IS_WINDOWS) {
+    const info = getWindowsTaskInfo(WINDOWS_TASKS.openclaw);
+    return Boolean(info?.exists && info?.enabled);
+  }
+
+  return existsSync(OPENCLAW_PLIST_PATH);
+}
+
+function sleepSeconds(seconds) {
+  if (IS_WINDOWS) {
+    runPowerShell(`Start-Sleep -Seconds ${seconds}`);
+    return;
+  }
+
+  execSync(`sleep ${seconds}`);
+}
+
+function startOpenClawService() {
+  if (IS_WINDOWS) {
+    execFileSync("schtasks.exe", ["/Run", "/TN", WINDOWS_TASKS.openclaw], { encoding: "utf-8" });
+    return;
+  }
+
+  execSync("launchctl start com.openclawup.openclaw 2>/dev/null");
+}
+
+function stopWindowsOpenClawFallback() {
+  if (!IS_WINDOWS) return;
+
+  const script = `
+    Get-CimInstance Win32_Process |
+      Where-Object {
+        $_.CommandLine -and (
+          $_.CommandLine -match 'start-openclaw\\.ps1' -or
+          $_.CommandLine -match 'openclaw(\\.cmd)?\\s+gateway' -or
+          $_.CommandLine -match 'gateway\\s+--port\\s+18789'
+        )
+      } |
+      ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+  `;
+
+  try {
+    runPowerShell(script);
+  } catch {
+    // Ignore cleanup failures so stop/restart can continue.
+  }
+}
+
+function stopOpenClawService() {
+  if (IS_WINDOWS) {
+    try {
+      execFileSync("schtasks.exe", ["/End", "/TN", WINDOWS_TASKS.openclaw], { encoding: "utf-8" });
+    } catch {
+      stopWindowsOpenClawFallback();
+    }
+    return;
+  }
+
+  execSync("launchctl stop com.openclawup.openclaw 2>/dev/null");
+}
+
+function restartOpenClawService() {
+  stopOpenClawService();
+  sleepSeconds(1);
+  startOpenClawService();
+}
+
+function setOpenClawAutoStart(enabled) {
+  if (IS_WINDOWS) {
+    execFileSync(
+      "schtasks.exe",
+      ["/Change", "/TN", WINDOWS_TASKS.openclaw, enabled ? "/ENABLE" : "/DISABLE"],
+      { encoding: "utf-8" },
+    );
+    return;
+  }
+
+  if (enabled) {
+    execSync(`launchctl load "${OPENCLAW_PLIST_PATH}" 2>/dev/null`);
+  } else {
+    execSync(`launchctl unload "${OPENCLAW_PLIST_PATH}" 2>/dev/null`);
+  }
+}
+
 function buildDiagnostics() {
   const config = readConfig();
   const env = readEnv();
@@ -193,8 +368,8 @@ function buildDiagnostics() {
   const gatewayErrorLog = readLogTail(LOG_SOURCES.gatewayError, 40);
   const managerLog = readLogTail(LOG_SOURCES.manager, 40);
   const managerErrorLog = readLogTail(LOG_SOURCES.managerError, 40);
-  const openclawLaunchctl = getLaunchctlStatus("com.openclawup.openclaw");
-  const managerLaunchctl = getLaunchctlStatus("com.openclawup.manager");
+  const openclawService = getServiceStatus("openclaw");
+  const managerService = getServiceStatus("manager");
   const availableModels = extractAvailableModels(config);
   const channels = Object.entries(config?.channels ?? {})
     .filter(([, value]) => value?.enabled !== false)
@@ -214,16 +389,16 @@ function buildDiagnostics() {
       detail: ENV_PATH,
     },
     {
-      id: "openclaw_plist",
+      id: "openclaw_autostart",
       label: "OpenClaw auto-start",
-      ok: existsSync(OPENCLAW_PLIST_PATH),
-      detail: OPENCLAW_PLIST_PATH,
+      ok: getAutoStartEnabled(),
+      detail: OPENCLAW_AUTOSTART_REF,
     },
     {
-      id: "manager_plist",
+      id: "manager_autostart",
       label: "Manager auto-start",
-      ok: existsSync(MANAGER_PLIST_PATH),
-      detail: MANAGER_PLIST_PATH,
+      ok: Boolean(managerService.loaded),
+      detail: MANAGER_AUTOSTART_REF,
     },
     {
       id: "service",
@@ -257,12 +432,12 @@ function buildDiagnostics() {
       managerDir: MANAGER_DIR,
       configPath: CONFIG_PATH,
       envPath: ENV_PATH,
-      openclawLaunchAgent: OPENCLAW_PLIST_PATH,
-      managerLaunchAgent: MANAGER_PLIST_PATH,
+      openclawAutoStart: OPENCLAW_AUTOSTART_REF,
+      managerAutoStart: MANAGER_AUTOSTART_REF,
     },
     service: {
-      openclaw: openclawLaunchctl,
-      manager: managerLaunchctl,
+      openclaw: openclawService,
+      manager: managerService,
     },
     configSummary: {
       currentModel: config?.agents?.defaults?.model?.primary ?? null,
@@ -313,7 +488,13 @@ function createDiagnosticsBundle() {
       writeFileSync(join(bundleDir, `${source}.log.txt`), content.endsWith("\n") ? content : `${content}\n`, "utf-8");
     }
 
-    execFileSync("zip", ["-r", "-q", archivePath, "."], { cwd: bundleDir });
+    if (IS_WINDOWS) {
+      runPowerShell(
+        `Compress-Archive -Path '${join(bundleDir, "*")}' -DestinationPath '${archivePath}' -Force`,
+      );
+    } else {
+      execFileSync("zip", ["-r", "-q", archivePath, "."], { cwd: bundleDir });
+    }
 
     return {
       filename: `openclawup-diagnostics-${sanitizeFilenamePart(stamp)}.zip`,
@@ -360,7 +541,7 @@ function handleApi(req, res) {
     const availableModels = extractAvailableModels(config);
 
     // Check auto-start
-    const autoStart = existsSync(OPENCLAW_PLIST_PATH);
+    const autoStart = getAutoStartEnabled();
 
     return jsonResponse(res, {
       running,
@@ -410,7 +591,7 @@ function handleApi(req, res) {
   // POST /api/restart
   if (path === "/api/restart" && req.method === "POST") {
     try {
-      execSync("launchctl stop com.openclawup.openclaw 2>/dev/null; sleep 1; launchctl start com.openclawup.openclaw 2>/dev/null");
+      restartOpenClawService();
       return jsonResponse(res, { ok: true });
     } catch {
       return jsonResponse(res, { error: "Failed to restart" }, 500);
@@ -420,7 +601,7 @@ function handleApi(req, res) {
   // POST /api/stop
   if (path === "/api/stop" && req.method === "POST") {
     try {
-      execSync("launchctl stop com.openclawup.openclaw 2>/dev/null");
+      stopOpenClawService();
       return jsonResponse(res, { ok: true });
     } catch {
       return jsonResponse(res, { error: "Failed to stop" }, 500);
@@ -430,7 +611,7 @@ function handleApi(req, res) {
   // POST /api/start
   if (path === "/api/start" && req.method === "POST") {
     try {
-      execSync("launchctl start com.openclawup.openclaw 2>/dev/null");
+      startOpenClawService();
       return jsonResponse(res, { ok: true });
     } catch {
       return jsonResponse(res, { error: "Failed to start" }, 500);
@@ -531,13 +712,7 @@ function handleApi(req, res) {
     req.on("end", () => {
       try {
         const { enabled } = JSON.parse(body);
-        const plistPath = join(process.env.HOME, "Library/LaunchAgents/com.openclawup.openclaw.plist");
-
-        if (enabled) {
-          execSync(`launchctl load "${plistPath}" 2>/dev/null`);
-        } else {
-          execSync(`launchctl unload "${plistPath}" 2>/dev/null`);
-        }
+        setOpenClawAutoStart(enabled);
         return jsonResponse(res, { ok: true });
       } catch (e) {
         return jsonResponse(res, { error: e.message }, 400);
