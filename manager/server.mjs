@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
-import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, statSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync, execSync } from "node:child_process";
 
@@ -284,6 +285,45 @@ function buildDiagnostics() {
   };
 }
 
+function sanitizeFilenamePart(value) {
+  return String(value)
+    .replaceAll(/[^a-zA-Z0-9_-]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "")
+    .slice(0, 80) || "unknown";
+}
+
+function createDiagnosticsBundle() {
+  const diagnostics = buildDiagnostics();
+  const stamp = new Date().toISOString().replaceAll(/[:.]/g, "-");
+  const workDir = mkdtempSync(join(tmpdir(), "openclawup-diagnostics-"));
+  const bundleDir = join(workDir, "bundle");
+  const archivePath = join(workDir, `openclawup-diagnostics-${sanitizeFilenamePart(stamp)}.zip`);
+
+  try {
+    mkdirSync(bundleDir, { recursive: true });
+
+    writeFileSync(
+      join(bundleDir, "diagnostics.json"),
+      `${JSON.stringify(diagnostics, null, 2)}\n`,
+      "utf-8",
+    );
+
+    for (const [source, log] of Object.entries(diagnostics.logs ?? {})) {
+      const content = log?.exists ? (log.content || "") : `Log source "${source}" not found.\n`;
+      writeFileSync(join(bundleDir, `${source}.log.txt`), content.endsWith("\n") ? content : `${content}\n`, "utf-8");
+    }
+
+    execFileSync("zip", ["-r", "-q", archivePath, "."], { cwd: bundleDir });
+
+    return {
+      filename: `openclawup-diagnostics-${sanitizeFilenamePart(stamp)}.zip`,
+      content: readFileSync(archivePath),
+    };
+  } finally {
+    rmSync(workDir, { recursive: true, force: true });
+  }
+}
+
 // ── API Routes ──────────────────────────────────────────────
 
 function handleApi(req, res) {
@@ -349,6 +389,22 @@ function handleApi(req, res) {
   // GET /api/diagnostics
   if (path === "/api/diagnostics" && req.method === "GET") {
     return jsonResponse(res, buildDiagnostics());
+  }
+
+  // GET /api/diagnostics/download
+  if (path === "/api/diagnostics/download" && req.method === "GET") {
+    try {
+      const bundle = createDiagnosticsBundle();
+      res.writeHead(200, {
+        "Content-Type": "application/zip",
+        "Content-Disposition": `attachment; filename="${bundle.filename}"`,
+        "Content-Length": bundle.content.length,
+        "Access-Control-Allow-Origin": "*",
+      });
+      return res.end(bundle.content);
+    } catch (error) {
+      return jsonResponse(res, { error: error?.message || "Failed to create diagnostics bundle" }, 500);
+    }
   }
 
   // POST /api/restart

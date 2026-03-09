@@ -700,6 +700,30 @@
       render();
     }
 
+    async function downloadDiagnostics() {
+      try {
+        const res = await fetch("/api/diagnostics/download");
+        if (!res.ok) {
+          throw new Error("Download failed");
+        }
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const disposition = res.headers.get("Content-Disposition") || "";
+        const fileNameMatch = disposition.match(/filename="([^"]+)"/);
+        const fileName = fileNameMatch?.[1] || "openclawup-diagnostics.zip";
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      } catch {
+        alert("Failed to download diagnostics bundle.");
+      }
+    }
+
     function setLogSource(source) {
       state.selectedLogSource = source;
       refreshLogs();
@@ -867,6 +891,7 @@
           <div class="card-head">
             <div class="card-title">Diagnostics</div>
             <div class="toolbar-group">
+              <button class="btn btn-sm" onclick="downloadDiagnostics()">Download diagnostics</button>
               <button class="btn btn-sm" onclick="refreshDiagnostics()">Refresh checks</button>
               <button class="btn btn-sm btn-green" onclick="copyDiagnostics()" ${state.diagnostics ? "" : "disabled"}>Copy JSON</button>
             </div>
