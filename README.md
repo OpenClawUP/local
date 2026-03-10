@@ -34,7 +34,7 @@ The installer will:
 1. **Check & install dependencies** — Node.js 22+ (auto-detected, installed if missing)
 2. **Install OpenClaw** — Latest version via npm
 3. **Configure your channel** — Telegram, Discord, WhatsApp, Slack, Signal, and 15+ more
-4. **Set up AI** — OpenClawUP AI proxy (pay-as-you-go, auto-routing) or your own OpenAI-compatible API key
+4. **Set up AI** — Bring your own OpenAI-compatible API key, or use OpenClawUP AI proxy (pay-as-you-go, auto-routing)
 5. **Start as background service** — Runs automatically on sign-in, survives terminal close
 6. **Install management app** — Open `http://localhost:8080` or use the platform shortcut to manage everything
 
@@ -63,11 +63,9 @@ You can also enable additional channels from the local manager, including IRC, M
 
 ## AI Models
 
-**With OpenClawUP AI proxy** (recommended):
+**Bring your own key**: Use any OpenAI-compatible API key and endpoint. You have full control over which models and providers to use.
 
-All major AI models available — Claude, GPT, Gemini, DeepSeek, Qwen, and more. Smart auto-routing picks the best model for each task by default.
-
-**Bring your own key**: Use any OpenAI-compatible API key and endpoint.
+**OpenClawUP AI proxy**: All major AI models available — Claude, GPT, Gemini, DeepSeek, Qwen, and more. Smart auto-routing picks the best model for each task by default. Pay-as-you-go, no upfront commitment.
 
 ## Uninstall
 
