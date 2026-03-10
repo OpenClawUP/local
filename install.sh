@@ -438,22 +438,32 @@ setup_byok_ai() {
   echo ""
   echo -e "  ${BOLD}Select your AI provider:${RESET}"
   echo ""
-  echo -e "  ${CYAN}[1]${RESET} OpenAI"
-  echo -e "  ${CYAN}[2]${RESET} OpenRouter"
-  echo -e "  ${CYAN}[3]${RESET} Other OpenAI-compatible API"
+  echo -e "  ${CYAN}[1]${RESET} OpenAI          ${DIM}(GPT-5)${RESET}"
+  echo -e "  ${CYAN}[2]${RESET} Google Gemini   ${DIM}(Gemini 2.5 Flash)${RESET}"
+  echo -e "  ${CYAN}[3]${RESET} Anthropic       ${DIM}(Claude Sonnet 4)${RESET}"
+  echo -e "  ${CYAN}[4]${RESET} DeepSeek        ${DIM}(DeepSeek V3)${RESET}"
+  echo -e "  ${CYAN}[5]${RESET} OpenRouter      ${DIM}(multi-provider, 300+ models)${RESET}"
+  echo -e "  ${CYAN}[6]${RESET} Groq            ${DIM}(Llama 4, ultra-fast)${RESET}"
+  echo -e "  ${CYAN}[7]${RESET} Mistral         ${DIM}(Mistral Large)${RESET}"
+  echo -e "  ${CYAN}[0]${RESET} Other           ${DIM}(enter API URL manually)${RESET}"
   echo ""
 
   read -rp "  Enter number (1): " provider_choice < /dev/tty
   provider_choice=${provider_choice:-1}
 
   case "$provider_choice" in
-    1) BYOK_PROVIDER="openai";    BYOK_BASE_URL="https://api.openai.com/v1";    BYOK_MODEL="gpt-5" ;;
-    2) BYOK_PROVIDER="openrouter"; BYOK_BASE_URL="https://openrouter.ai/api/v1"; BYOK_MODEL="google/gemini-3-flash-preview" ;;
-    3)
+    1) BYOK_PROVIDER="openai";     BYOK_BASE_URL="https://api.openai.com/v1";                                    BYOK_MODEL="gpt-5" ;;
+    2) BYOK_PROVIDER="google";     BYOK_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai";       BYOK_MODEL="gemini-2.5-flash" ;;
+    3) BYOK_PROVIDER="anthropic";  BYOK_BASE_URL="https://api.anthropic.com/v1";                                  BYOK_MODEL="claude-sonnet-4-20250514" ;;
+    4) BYOK_PROVIDER="deepseek";   BYOK_BASE_URL="https://api.deepseek.com/v1";                                   BYOK_MODEL="deepseek-chat" ;;
+    5) BYOK_PROVIDER="openrouter"; BYOK_BASE_URL="https://openrouter.ai/api/v1";                                  BYOK_MODEL="google/gemini-2.5-flash-preview" ;;
+    6) BYOK_PROVIDER="groq";       BYOK_BASE_URL="https://api.groq.com/openai/v1";                                BYOK_MODEL="meta-llama/llama-4-scout-17b-16e-instruct" ;;
+    7) BYOK_PROVIDER="mistral";    BYOK_BASE_URL="https://api.mistral.ai/v1";                                     BYOK_MODEL="mistral-large-latest" ;;
+    0)
       echo ""
-      echo -e "  ${DIM}API endpoint URL, e.g. https://api.deepseek.com/v1${RESET}"
+      echo -e "  ${DIM}API endpoint URL, e.g. https://api.example.com/v1${RESET}"
       read -rp "  API URL: " BYOK_BASE_URL < /dev/tty
-      read -rp "  Model name (e.g. deepseek-chat): " BYOK_MODEL < /dev/tty
+      read -rp "  Model name: " BYOK_MODEL < /dev/tty
       BYOK_PROVIDER="custom"
       ;;
     *) BYOK_PROVIDER="openai"; BYOK_BASE_URL="https://api.openai.com/v1"; BYOK_MODEL="gpt-5" ;;
