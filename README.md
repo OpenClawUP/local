@@ -63,20 +63,11 @@ You can also enable additional channels from the local manager, including IRC, M
 
 ## AI Models
 
-With OpenClawUP AI proxy (recommended), the installer configures:
+**With OpenClawUP AI proxy** (recommended):
 
-- **Auto Routing** (default) — Lets OpenClawUP pick the best model automatically
-- **Gemini 3 Flash**
-- **GPT-5.4**
-- **Claude Sonnet 4.6**
-- **DeepSeek V3.2**
-- **Qwen 3.5**
-- **GLM-5**
-- **MiniMax M2.5**
-- **Kimi K2.5**
-- **Claude Opus 4.5**
+All major AI models available — Claude, GPT, Gemini, DeepSeek, Qwen, and more. Smart auto-routing picks the best model for each task by default.
 
-Or bring your own OpenAI-compatible API key and use any model your provider exposes.
+**Bring your own key**: Use any OpenAI-compatible API key and endpoint.
 
 ## Uninstall
 
@@ -109,7 +100,7 @@ Windows download: [`uninstall.bat`](https://github.com/OpenClawUP/local/releases
 | Uptime | While your computer is on | 24/7 |
 | Setup | 2 minutes | 60 seconds |
 | Channels | All supported | All supported |
-| AI Models | All supported | All supported |
+| AI Models | All major models | All major models |
 | Document search | — | Built-in QMD engine |
 | Management | Local web UI | Cloud dashboard |
 | Updates | Manual | Automatic |
