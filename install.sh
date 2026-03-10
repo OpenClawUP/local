@@ -356,8 +356,8 @@ select_ai() {
   echo ""
   echo -e "  ${BOLD}AI Model Configuration:${RESET}"
   echo ""
-  echo -e "  ${CYAN}[1]${RESET} OpenClawUP AI ${DIM}(recommended, multiple models, auto-routing, pay-as-you-go)${RESET}"
-  echo -e "  ${CYAN}[2]${RESET} Use your own API Key ${DIM}(OpenAI or other OpenAI-compatible provider)${RESET}"
+  echo -e "  ${CYAN}[1]${RESET} Use your own API Key ${DIM}(OpenAI, OpenRouter, or compatible)${RESET}"
+  echo -e "  ${CYAN}[2]${RESET} OpenClawUP AI ${DIM}(multiple models, auto-routing, pay-as-you-go)${RESET}"
   echo ""
 
   while true; do
@@ -366,13 +366,13 @@ select_ai() {
 
     case "$ai_choice" in
       1)
-        AI_MODE="proxy"
-        setup_proxy_ai
+        AI_MODE="byok"
+        setup_byok_ai
         break
         ;;
       2)
-        AI_MODE="byok"
-        setup_byok_ai
+        AI_MODE="proxy"
+        setup_proxy_ai
         break
         ;;
       *)
@@ -450,8 +450,10 @@ setup_byok_ai() {
     1) BYOK_PROVIDER="openai";    BYOK_BASE_URL="https://api.openai.com/v1";    BYOK_MODEL="gpt-5" ;;
     2) BYOK_PROVIDER="openrouter"; BYOK_BASE_URL="https://openrouter.ai/api/v1"; BYOK_MODEL="google/gemini-3-flash-preview" ;;
     3)
-      read -rp "  Base URL: " BYOK_BASE_URL < /dev/tty
-      read -rp "  Model name: " BYOK_MODEL < /dev/tty
+      echo ""
+      echo -e "  ${DIM}API endpoint URL, e.g. https://api.deepseek.com/v1${RESET}"
+      read -rp "  API URL: " BYOK_BASE_URL < /dev/tty
+      read -rp "  Model name (e.g. deepseek-chat): " BYOK_MODEL < /dev/tty
       BYOK_PROVIDER="custom"
       ;;
     *) BYOK_PROVIDER="openai"; BYOK_BASE_URL="https://api.openai.com/v1"; BYOK_MODEL="gpt-5" ;;
