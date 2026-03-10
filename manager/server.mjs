@@ -593,6 +593,9 @@ function handleApi(req, res) {
     // Check auto-start
     const autoStart = getAutoStartEnabled();
 
+    // Gateway token for WebChat auth
+    const gatewayToken = config?.gateway?.auth?.token || null;
+
     return jsonResponse(res, {
       running,
       version,
@@ -602,6 +605,7 @@ function handleApi(req, res) {
       autoStart,
       availableModels,
       aiMode: readEnv().OPENCLAWUP_API_KEY ? "proxy" : "byok",
+      gatewayToken,
     });
   }
 

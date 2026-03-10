@@ -824,7 +824,7 @@
         <div class="header">
           <h1>OpenClaw<span>UP</span> Local</h1>
           <div style="display:flex;align-items:center;gap:0.75rem">
-            ${state.running ? '<a href="http://localhost:18789" target="_blank" class="btn btn-green btn-sm" style="text-decoration:none">Open Chat</a>' : ''}
+            ${state.running ? `<a href="http://localhost:18789${state.gatewayToken ? '?token=' + encodeURIComponent(state.gatewayToken) : ''}" target="_blank" class="btn btn-green btn-sm" style="text-decoration:none">Open Chat</a>` : ''}
             <span class="version">${state.version}</span>
           </div>
         </div>
