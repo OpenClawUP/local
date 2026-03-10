@@ -492,7 +492,7 @@ generate_config() {
   local channel_block=""
   case "$channel_id" in
     telegram)
-      channel_block="\"telegram\": { \"enabled\": true, \"botToken\": \"$token_ref\", \"dmPolicy\": \"open\", \"streaming\": \"partial\" }"
+      channel_block="\"telegram\": { \"enabled\": true, \"botToken\": \"$token_ref\", \"dmPolicy\": \"open\", \"allowFrom\": [\"*\"], \"streaming\": \"partial\" }"
       ;;
     discord)
       channel_block="\"discord\": { \"enabled\": true, \"token\": \"$token_ref\" }"
@@ -555,6 +555,9 @@ generate_config() {
   # Write openclaw.json
   cat > "$OPENCLAW_DIR/openclaw.json" << JSONEOF
 {
+  "gateway": {
+    "mode": "local"
+  },
   "channels": {
     $channel_block
   },

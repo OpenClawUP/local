@@ -20,6 +20,7 @@ const OPENCLAW_PLIST_PATH = join(HOME_DIR, "Library/LaunchAgents/com.openclawup.
 const MANAGER_PLIST_PATH = join(HOME_DIR, "Library/LaunchAgents/com.openclawup.manager.plist");
 const OPENCLAW_AUTOSTART_REF = IS_WINDOWS ? `Task Scheduler/${WINDOWS_TASKS.openclaw}` : OPENCLAW_PLIST_PATH;
 const MANAGER_AUTOSTART_REF = IS_WINDOWS ? `Task Scheduler/${WINDOWS_TASKS.manager}` : MANAGER_PLIST_PATH;
+const CHANNEL_META_PATH = join(MANAGER_DIR, "channel-meta.json");
 const LOG_SOURCES = {
   gateway: join(OPENCLAW_DIR, "logs", "gateway.log"),
   gatewayError: join(OPENCLAW_DIR, "logs", "gateway.err"),
@@ -285,12 +286,26 @@ async function fetchBotName(channelId, token) {
   return null;
 }
 
+function readChannelMeta() {
+  try {
+    if (existsSync(CHANNEL_META_PATH)) {
+      return JSON.parse(readFileSync(CHANNEL_META_PATH, "utf-8"));
+    }
+  } catch {}
+  return {};
+}
+
+function writeChannelMeta(meta) {
+  writeFileSync(CHANNEL_META_PATH, JSON.stringify(meta, null, 2));
+}
+
 function extractChannelInfo(config) {
   const channels = [];
   if (!config?.channels) return channels;
+  const meta = readChannelMeta();
   for (const [id, ch] of Object.entries(config.channels)) {
     if (ch.enabled !== false) {
-      channels.push({ id, botName: ch.botName || null });
+      channels.push({ id, botName: meta[id]?.botName || null });
     }
   }
   return channels;
@@ -690,6 +705,7 @@ function handleApi(req, res) {
             if (channelId === "telegram") {
               channelConfig.botToken = `\${TELEGRAM_BOT_TOKEN}`;
               channelConfig.dmPolicy = "open";
+              channelConfig.allowFrom = ["*"];
               channelConfig.streaming = "partial";
             } else if (channelId === "discord") {
               channelConfig.token = `\${DISCORD_BOT_TOKEN}`;
@@ -699,15 +715,25 @@ function handleApi(req, res) {
               channelConfig.token = `\${${envKey}}`;
             }
 
-            // Fetch bot name from platform API
+            // Fetch bot name and store in separate metadata (not in openclaw.json)
             const botName = await fetchBotName(channelId, token);
-            if (botName) channelConfig.botName = botName;
+            if (botName) {
+              const meta = readChannelMeta();
+              meta[channelId] = { botName };
+              writeChannelMeta(meta);
+            }
           }
 
           config.channels[channelId] = channelConfig;
         } else if (action === "remove") {
           if (config.channels?.[channelId]) {
             delete config.channels[channelId];
+          }
+          // Clean up metadata
+          const meta = readChannelMeta();
+          if (meta[channelId]) {
+            delete meta[channelId];
+            writeChannelMeta(meta);
           }
         }
 
@@ -734,6 +760,78 @@ function handleApi(req, res) {
         if (!config.agents.defaults) config.agents.defaults = {};
         if (!config.agents.defaults.model) config.agents.defaults.model = {};
         config.agents.defaults.model.primary = model;
+
+        writeConfig(config);
+        return jsonResponse(res, { ok: true });
+      } catch (e) {
+        return jsonResponse(res, { error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/config/model — add a new model to the current provider
+  if (path === "/api/config/model" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", () => {
+      try {
+        const { modelId, displayName } = JSON.parse(body);
+        if (!modelId) return jsonResponse(res, { error: "modelId required" }, 400);
+        const config = readConfig();
+        if (!config) return jsonResponse(res, { error: "Config not found" }, 500);
+
+        // Find first provider and add model to it
+        const providers = config?.models?.providers;
+        if (!providers) return jsonResponse(res, { error: "No providers configured" }, 400);
+        const [providerId, provider] = Object.entries(providers)[0];
+        if (!Array.isArray(provider.models)) provider.models = [];
+
+        // Check duplicate
+        if (provider.models.some(m => m.id === modelId)) {
+          return jsonResponse(res, { error: "Model already exists" }, 400);
+        }
+
+        provider.models.push({ id: modelId, name: displayName || modelId });
+        writeConfig(config);
+        return jsonResponse(res, { ok: true, fullId: `${providerId}/${modelId}` });
+      } catch (e) {
+        return jsonResponse(res, { error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // DELETE /api/config/model — remove a model from provider
+  if (path === "/api/config/model" && req.method === "DELETE") {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", () => {
+      try {
+        const { modelId } = JSON.parse(body);
+        if (!modelId) return jsonResponse(res, { error: "modelId required" }, 400);
+        const config = readConfig();
+        if (!config) return jsonResponse(res, { error: "Config not found" }, 500);
+
+        const providers = config?.models?.providers;
+        if (!providers) return jsonResponse(res, { error: "No providers configured" }, 400);
+
+        // modelId is "provider/model" format
+        const slashIdx = modelId.indexOf("/");
+        const providerId = slashIdx > 0 ? modelId.slice(0, slashIdx) : Object.keys(providers)[0];
+        const rawId = slashIdx > 0 ? modelId.slice(slashIdx + 1) : modelId;
+
+        const provider = providers[providerId];
+        if (!provider?.models) return jsonResponse(res, { error: "Provider not found" }, 400);
+        if (provider.models.length <= 1) return jsonResponse(res, { error: "Cannot remove last model" }, 400);
+
+        provider.models = provider.models.filter(m => m.id !== rawId);
+
+        // If active model was deleted, switch to first remaining
+        const currentModel = config?.agents?.defaults?.model?.primary;
+        if (currentModel === modelId || currentModel === `${providerId}/${rawId}`) {
+          config.agents.defaults.model.primary = `${providerId}/${provider.models[0].id}`;
+        }
 
         writeConfig(config);
         return jsonResponse(res, { ok: true });

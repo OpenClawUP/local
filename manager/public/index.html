@@ -653,6 +653,31 @@
       await doAction("restart");
     }
 
+    async function addModel() {
+      const modelId = document.getElementById("new-model-id")?.value?.trim();
+      if (!modelId) return alert("Please enter a model ID");
+      const displayName = document.getElementById("new-model-name")?.value?.trim() || modelId;
+      const res = await api("/api/config/model", {
+        method: "POST",
+        body: JSON.stringify({ modelId, displayName }),
+      });
+      if (res?.error) return alert(res.error);
+      document.getElementById("add-model-form")?.classList.remove("show");
+      // Switch to the new model and restart
+      if (res?.fullId) await changeModel(res.fullId);
+      else await refresh();
+    }
+
+    async function removeCurrentModel() {
+      if (!confirm("Remove the currently selected model?")) return;
+      const res = await api("/api/config/model", {
+        method: "DELETE",
+        body: JSON.stringify({ modelId: state.model }),
+      });
+      if (res?.error) return alert(res.error);
+      await doAction("restart");
+    }
+
     async function toggleAutoStart() {
       const enabled = !state.autoStart;
       await api("/api/config/autostart", { method: "PUT", body: JSON.stringify({ enabled }) });
@@ -799,7 +824,7 @@
         <div class="header">
           <h1>OpenClaw<span>UP</span> Local</h1>
           <div style="display:flex;align-items:center;gap:0.75rem">
-            <a href="http://localhost:18789" target="_blank" class="btn btn-green btn-sm" style="text-decoration:none">Open Chat</a>
+            ${state.running ? '<a href="http://localhost:18789" target="_blank" class="btn btn-green btn-sm" style="text-decoration:none">Open Chat</a>' : ''}
             <span class="version">${state.version}</span>
           </div>
         </div>
@@ -874,6 +899,19 @@
                 </option>
               `).join("")}
            </select>
+          </div>
+          ${models.length > 1 ? `<div style="margin-top:0.5rem">
+            <button class="btn btn-sm btn-red" onclick="removeCurrentModel()">Remove selected model</button>
+          </div>` : ''}
+          <div class="btn-row" style="margin-top:0.75rem">
+            <button class="btn btn-sm btn-green" onclick="document.getElementById('add-model-form').classList.toggle('show')">+ Add Model</button>
+          </div>
+          <div class="add-form" id="add-model-form">
+            <input type="text" id="new-model-id" placeholder="Model ID (e.g. gemini-2.5-pro)">
+            <input type="text" id="new-model-name" placeholder="Display name (optional)">
+            <div class="btn-row">
+              <button class="btn btn-green" onclick="addModel()">Add</button>
+            </div>
           </div>
           ${creditAction}
         </div>
