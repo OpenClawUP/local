@@ -93,7 +93,7 @@ echo ""
 echo -e "${BOLD}OpenClawUP Local — Uninstaller${RESET}"
 echo ""
 
-read -rp "  This will remove OpenClawUP Local and all its data. Continue? (y/N): " confirm
+read -rp "  This will remove OpenClawUP Local and all its data. Continue? (y/N): " confirm < /dev/tty
 if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
   echo "  Cancelled."
   exit 0
@@ -115,7 +115,7 @@ echo -e "  ${GREEN}✓${RESET} App removed from Applications"
 
 # Ask about OpenClaw data
 echo ""
-read -rp "  Also remove OpenClaw config and data (~/.openclaw)? (y/N): " remove_data
+read -rp "  Also remove OpenClaw config and data (~/.openclaw)? (y/N): " remove_data < /dev/tty
 if [[ "$remove_data" == "y" || "$remove_data" == "Y" ]]; then
   rm -rf "$HOME/.openclaw"
   echo -e "  ${GREEN}✓${RESET} OpenClaw data removed"
@@ -125,7 +125,7 @@ fi
 
 # Ask about OpenClaw itself
 echo ""
-read -rp "  Also uninstall OpenClaw globally? (y/N): " remove_openclaw
+read -rp "  Also uninstall OpenClaw globally? (y/N): " remove_openclaw < /dev/tty
 if [[ "$remove_openclaw" == "y" || "$remove_openclaw" == "Y" ]]; then
   OPENCLAW_PREFIX_CANDIDATES=()
   add_candidate_prefix "$(current_npm_prefix)"

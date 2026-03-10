@@ -600,11 +600,13 @@ JSONEOF
 install_manager() {
   mkdir -p "$MANAGER_DIR"
 
-  # Copy manager files
-  local script_dir
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # Copy manager files (local clone) or download (curl|bash)
+  local script_dir="${BASH_SOURCE[0]:-}"
+  if [[ -n "$script_dir" ]]; then
+    script_dir="$(cd "$(dirname "$script_dir")" && pwd)"
+  fi
 
-  if [[ -d "$script_dir/manager" ]]; then
+  if [[ -n "$script_dir" && -d "$script_dir/manager" ]]; then
     cp -r "$script_dir/manager/"* "$MANAGER_DIR/"
   else
     # Download manager from GitHub if running via curl
@@ -751,11 +753,13 @@ LAUNCHEREOF
 </plist>
 INFOPLISTEOF
 
-  # Copy icon if available
-  local script_dir
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  if [[ -f "$script_dir/assets/icon.icns" ]]; then
-    cp "$script_dir/assets/icon.icns" "$app_resources/icon.icns"
+  # Copy icon if available (only when running from local clone)
+  local script_dir="${BASH_SOURCE[0]:-}"
+  if [[ -n "$script_dir" ]]; then
+    script_dir="$(cd "$(dirname "$script_dir")" && pwd)"
+    if [[ -f "$script_dir/assets/icon.icns" ]]; then
+      cp "$script_dir/assets/icon.icns" "$app_resources/icon.icns"
+    fi
   fi
 
   success "App installed at /Applications/OpenClawUP Local.app"
