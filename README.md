@@ -3,7 +3,7 @@
 One-click install [OpenClaw](https://github.com/openclaw/openclaw) AI assistant on your computer.
 
 > Want 24/7 uptime without keeping your computer on?
-> Try [OpenClawUP Cloud](https://openclawup.com) — deploy in 60 seconds, no technical setup needed.
+> Try [OpenClawUP Cloud](https://openclawup.com) — deploy in 60 seconds, no technical setup needed. Free 3-day trial included.
 
 ## Install
 
@@ -104,11 +104,13 @@ Windows download: [`uninstall.bat`](https://github.com/OpenClawUP/local/releases
 
 | | Local (this) | [Cloud](https://openclawup.com) |
 |---|---|---|
-| Price | Free (AI pay-as-you-go) | $49/month (incl. $15 AI credits) |
+| Price | Free (AI pay-as-you-go) | ~~$49~~ $39/mo launch special (incl. $15 AI credits) |
+| Free trial | N/A | 3 days + $3 AI credits |
 | Uptime | While your computer is on | 24/7 |
 | Setup | 2 minutes | 60 seconds |
 | Channels | All supported | All supported |
 | AI Models | All supported | All supported |
+| Document search | — | Built-in QMD engine |
 | Management | Local web UI | Cloud dashboard |
 | Updates | Manual | Automatic |
 
