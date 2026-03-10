@@ -13,6 +13,8 @@ MANAGER_PORT=8080
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 APP_DIR="/Applications/OpenClawUP Local.app"
 OPENCLAWUP_API="https://openclawup.com"
+NPM_GLOBAL_PREFIX=""
+NPM_GLOBAL_BIN=""
 
 # ── Colors ──────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -30,6 +32,88 @@ success() { echo -e "${GREEN}  ├── ✓${RESET} $1"; }
 warn()    { echo -e "${YELLOW}  ├── ⚠${RESET} $1"; }
 fail()    { echo -e "${RED}  └── ✗ $1${RESET}"; exit 1; }
 step()    { echo -e "\n${BOLD}${CYAN}  [$1]${RESET} ${BOLD}$2${RESET}"; }
+
+path_contains() {
+  local dir="$1"
+  [[ -n "$dir" && ":$PATH:" == *":$dir:"* ]]
+}
+
+prepend_path() {
+  local dir="$1"
+  [[ -n "$dir" ]] || return 0
+  if [[ -d "$dir" ]] && ! path_contains "$dir"; then
+    export PATH="$dir:$PATH"
+  fi
+}
+
+current_npm_prefix() {
+  local prefix=""
+  if prefix=$(npm prefix -g 2>/dev/null); then
+    :
+  else
+    prefix=$(npm config get prefix 2>/dev/null || true)
+  fi
+
+  if [[ "$prefix" == "undefined" || "$prefix" == "null" ]]; then
+    prefix=""
+  fi
+
+  printf '%s' "$prefix"
+}
+
+can_write_dir() {
+  local dir="$1"
+  local probe_dir="$dir"
+  if [[ ! -d "$probe_dir" ]]; then
+    probe_dir=$(dirname "$probe_dir")
+  fi
+
+  mkdir -p "$probe_dir" 2>/dev/null || return 1
+
+  local probe="$probe_dir/.openclawup-write-test-$$"
+  if touch "$probe" 2>/dev/null; then
+    rm -f "$probe"
+    return 0
+  fi
+
+  return 1
+}
+
+prepare_npm_runtime() {
+  local prefix=""
+  prefix=$(current_npm_prefix)
+  if [[ -n "$prefix" ]]; then
+    NPM_GLOBAL_PREFIX="$prefix"
+    NPM_GLOBAL_BIN="$prefix/bin"
+    prepend_path "$NPM_GLOBAL_BIN"
+  fi
+}
+
+use_npm_prefix() {
+  local prefix="$1"
+  mkdir -p "$prefix/bin" "$prefix/lib/node_modules"
+  export NPM_CONFIG_PREFIX="$prefix"
+  NPM_GLOBAL_PREFIX="$prefix"
+  NPM_GLOBAL_BIN="$prefix/bin"
+  prepend_path "$NPM_GLOBAL_BIN"
+}
+
+prepare_npm_install_prefix() {
+  local prefix=""
+  prefix=$(current_npm_prefix)
+
+  if [[ -n "$prefix" ]] && can_write_dir "$prefix"; then
+    use_npm_prefix "$prefix"
+    return 0
+  fi
+
+  local fallback_prefix="$MANAGER_DIR/npm-global"
+  if [[ -n "$prefix" ]]; then
+    warn "npm global prefix is not writable: $prefix"
+  fi
+  warn "Using user-scoped npm prefix: $fallback_prefix"
+  use_npm_prefix "$fallback_prefix"
+}
 
 banner() {
   echo ""
@@ -113,6 +197,7 @@ install_node() {
 }
 
 check_openclaw() {
+  prepare_npm_runtime
   if command -v openclaw &>/dev/null; then
     local ver
     ver=$(openclaw --version 2>/dev/null | head -1 || echo "unknown")
@@ -125,13 +210,18 @@ check_openclaw() {
 
 install_openclaw() {
   info "Installing OpenClaw..."
-  npm install -g openclaw@latest 2>/dev/null
+  prepare_npm_install_prefix
+
+  if ! npm install -g openclaw@latest; then
+    fail "Failed to install OpenClaw with npm. Prefix: ${NPM_GLOBAL_PREFIX:-unknown}"
+  fi
+
   if command -v openclaw &>/dev/null; then
     local ver
     ver=$(openclaw --version 2>/dev/null | head -1 || echo "unknown")
     success "OpenClaw $ver installed"
   else
-    fail "Failed to install OpenClaw. Try manually: npm install -g openclaw@latest"
+    fail "OpenClaw installed but command not found on PATH. Prefix: ${NPM_GLOBAL_PREFIX:-unknown}"
   fi
 }
 
@@ -518,6 +608,11 @@ register_services() {
   node_path=$(which node)
   local openclaw_path
   openclaw_path=$(which openclaw)
+  local launch_path
+  launch_path="/usr/local/bin:/usr/bin:/bin:$(dirname "$node_path")"
+  if [[ -n "$NPM_GLOBAL_BIN" ]]; then
+    launch_path="$NPM_GLOBAL_BIN:$launch_path"
+  fi
 
   # OpenClaw service
   cat > "$LAUNCH_AGENTS_DIR/com.openclawup.openclaw.plist" << PLISTEOF
@@ -539,7 +634,7 @@ register_services() {
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>/usr/local/bin:/usr/bin:/bin:$(dirname "$node_path")</string>
+    <string>$launch_path</string>
     <key>HOME</key>
     <string>$HOME</string>
   </dict>
@@ -572,6 +667,8 @@ PLISTEOF
   <string>$MANAGER_DIR</string>
   <key>EnvironmentVariables</key>
   <dict>
+    <key>PATH</key>
+    <string>$launch_path</string>
     <key>PORT</key>
     <string>$MANAGER_PORT</string>
     <key>OPENCLAW_DIR</key>

@@ -8,6 +8,8 @@ $OpenClawUPApi = "https://openclawup.com"
 $TaskOpenClawName = "OpenClawUP-OpenClaw"
 $TaskManagerName = "OpenClawUP-Manager"
 $StartMenuDir = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\OpenClawUP Local"
+$script:NpmGlobalPrefix = $null
+$script:NpmGlobalBin = $null
 
 function Write-Info([string]$Message) {
   Write-Host "  |-- $Message" -ForegroundColor Cyan
@@ -51,6 +53,14 @@ function Get-CommandPath([string]$Name) {
   return $command.Source
 }
 
+function Get-NpmCommandPath {
+  $npmPath = Get-CommandPath "npm.cmd"
+  if (-not $npmPath) {
+    $npmPath = Get-CommandPath "npm"
+  }
+  return $npmPath
+}
+
 function Ensure-Windows {
   if (-not $IsWindows) {
     Fail "This installer is for Windows only."
@@ -58,14 +68,112 @@ function Ensure-Windows {
   Write-Success "Windows $([System.Environment]::OSVersion.VersionString)"
 }
 
+function Add-PathEntry([string]$PathEntry) {
+  if ([string]::IsNullOrWhiteSpace($PathEntry) -or -not (Test-Path $PathEntry)) {
+    return
+  }
+
+  if (($env:Path -split ";") -notcontains $PathEntry) {
+    $env:Path = "$PathEntry;$env:Path"
+  }
+}
+
 function Add-CommonPaths {
   $nodeDir = "C:\Program Files\nodejs"
   $npmDir = Join-Path $env:APPDATA "npm"
   foreach ($path in @($nodeDir, $npmDir)) {
-    if ((Test-Path $path) -and -not (($env:Path -split ";") -contains $path)) {
-      $env:Path = "$path;$env:Path"
-    }
+    Add-PathEntry $path
   }
+}
+
+function Get-NpmGlobalPrefix {
+  $npmPath = Get-NpmCommandPath
+  if (-not $npmPath) {
+    return $null
+  }
+
+  $prefix = & $npmPath prefix -g 2>$null
+  if (-not [string]::IsNullOrWhiteSpace($prefix)) {
+    return $prefix.Trim()
+  }
+
+  $prefix = & $npmPath config get prefix 2>$null
+  if ([string]::IsNullOrWhiteSpace($prefix)) {
+    return $null
+  }
+
+  $prefix = $prefix.Trim()
+  if ($prefix -in @("undefined", "null")) {
+    return $null
+  }
+
+  return $prefix
+}
+
+function Test-DirectoryWritable([string]$Path) {
+  if ([string]::IsNullOrWhiteSpace($Path)) {
+    return $false
+  }
+
+  $probeDir = $Path
+  if (-not (Test-Path $probeDir)) {
+    $probeDir = Split-Path -Parent $probeDir
+  }
+
+  if ([string]::IsNullOrWhiteSpace($probeDir)) {
+    return $false
+  }
+
+  try {
+    New-Item -ItemType Directory -Force -Path $probeDir | Out-Null
+    $probePath = Join-Path $probeDir (".openclawup-write-test-" + [guid]::NewGuid().ToString("N"))
+    Set-Content -Path $probePath -Value "" -Encoding ASCII
+    Remove-Item -Force $probePath
+    return $true
+  } catch {
+    return $false
+  }
+}
+
+function Sync-NpmRuntimePath {
+  $prefix = Get-NpmGlobalPrefix
+  if ([string]::IsNullOrWhiteSpace($prefix)) {
+    return
+  }
+
+  $script:NpmGlobalPrefix = $prefix
+  $script:NpmGlobalBin = Join-Path $prefix "bin"
+  Add-PathEntry $script:NpmGlobalBin
+}
+
+function Use-NpmPrefix([string]$Prefix) {
+  if ([string]::IsNullOrWhiteSpace($Prefix)) {
+    Fail "Unable to determine npm prefix for OpenClaw installation."
+  }
+
+  New-Item -ItemType Directory -Force -Path (Join-Path $Prefix "bin") | Out-Null
+  New-Item -ItemType Directory -Force -Path (Join-Path $Prefix "lib\node_modules") | Out-Null
+
+  $env:NPM_CONFIG_PREFIX = $Prefix
+  $script:NpmGlobalPrefix = $Prefix
+  $script:NpmGlobalBin = Join-Path $Prefix "bin"
+  Add-PathEntry $script:NpmGlobalBin
+}
+
+function Ensure-NpmInstallLocation {
+  $prefix = Get-NpmGlobalPrefix
+  if ($prefix -and (Test-DirectoryWritable $prefix)) {
+    Use-NpmPrefix $prefix
+    return
+  }
+
+  if ($prefix) {
+    Write-Warn "npm global prefix is not writable: $prefix"
+  }
+
+  $fallbackPrefix = Join-Path $ManagerDir "npm-global"
+  Write-Warn "Using user-scoped npm prefix: $fallbackPrefix"
+  Use-NpmPrefix $fallbackPrefix
 }
 
 function Get-NodeMajorVersion {
@@ -109,6 +217,7 @@ function Ensure-Node {
 
 function Ensure-OpenClaw {
   Add-CommonPaths
+  Sync-NpmRuntimePath
   $openClawPath = Get-CommandPath "openclaw.cmd"
   if (-not $openClawPath) {
     $openClawPath = Get-CommandPath "openclaw"
@@ -121,8 +230,19 @@ function Ensure-OpenClaw {
   }
 
   Write-Info "Installing OpenClaw..."
-  & npm install -g openclaw@latest | Out-Null
+  Ensure-NpmInstallLocation
+  $npmPath = Get-NpmCommandPath
+  if (-not $npmPath) {
+    Fail "npm not found after Node.js installation."
+  }
+
+  & $npmPath install -g openclaw@latest
+  if ($LASTEXITCODE -ne 0) {
+    Fail "Failed to install OpenClaw with npm. Prefix: $script:NpmGlobalPrefix"
+  }
+
   Add-CommonPaths
+  Add-PathEntry $script:NpmGlobalBin
 
   $openClawPath = Get-CommandPath "openclaw.cmd"
   if (-not $openClawPath) {
@@ -130,7 +250,7 @@ function Ensure-OpenClaw {
   }
 
   if (-not $openClawPath) {
-    Fail "Failed to install OpenClaw."
+    Fail "OpenClaw installed but command was not found on PATH. Prefix: $script:NpmGlobalPrefix"
   }
 
   $version = & $openClawPath --version 2>$null | Select-Object -First 1
@@ -477,6 +597,8 @@ function Write-LauncherScripts([string]$OpenClawPath) {
 
   $openClawLiteral = Convert-ToSingleQuotedLiteral $OpenClawPath
   $nodeLiteral = Convert-ToSingleQuotedLiteral $nodePath
+  $nodeDirLiteral = Convert-ToSingleQuotedLiteral (Split-Path $nodePath -Parent)
+  $npmBinLiteral = Convert-ToSingleQuotedLiteral $script:NpmGlobalBin
   $openClawDirLiteral = Convert-ToSingleQuotedLiteral $OpenClawDir
   $managerDirLiteral = Convert-ToSingleQuotedLiteral $ManagerDir
   $serverLiteral = Convert-ToSingleQuotedLiteral (Join-Path $ManagerDir "server.mjs")
@@ -486,6 +608,7 @@ function Write-LauncherScripts([string]$OpenClawPath) {
     '$ErrorActionPreference = "Stop"',
     '$env:OPENCLAW_DIR = ' + $openClawDirLiteral,
     '$env:HOME = ' + $homeLiteral,
+    '$env:Path = ' + $npmBinLiteral + ' + ";" + ' + $nodeDirLiteral + ' + ";" + $env:Path',
     '$logDir = Join-Path $env:OPENCLAW_DIR "logs"',
     'New-Item -ItemType Directory -Force -Path $logDir | Out-Null',
     '$stdout = Join-Path $logDir "gateway.log"',
@@ -500,6 +623,7 @@ function Write-LauncherScripts([string]$OpenClawPath) {
     '$env:OPENCLAW_DIR = ' + $openClawDirLiteral,
     '$env:OPENCLAWUP_MANAGER_DIR = ' + $managerDirLiteral,
     '$env:HOME = ' + $homeLiteral,
+    '$env:Path = ' + $npmBinLiteral + ' + ";" + ' + $nodeDirLiteral + ' + ";" + $env:Path',
     '$stdout = Join-Path $env:OPENCLAWUP_MANAGER_DIR "manager.log"',
     '$stderr = Join-Path $env:OPENCLAWUP_MANAGER_DIR "manager.err"',
     '& ' + $nodeLiteral + ' ' + $serverLiteral + ' 1>> $stdout 2>> $stderr'
