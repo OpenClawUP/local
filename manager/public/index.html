@@ -769,7 +769,8 @@
     }
 
     function render() {
-      const availableChannels = ALL_CHANNELS.filter(c => !state.channels.includes(c));
+      const channelIds = state.channels.map(ch => typeof ch === "string" ? ch : ch.id);
+      const availableChannels = ALL_CHANNELS.filter(c => !channelIds.includes(c));
       const models = Array.isArray(state.availableModels) && state.availableModels.length > 0
         ? state.availableModels
         : [{ id: state.model || "unknown", name: state.model || "Unknown model" }];
@@ -797,7 +798,10 @@
       document.getElementById("app").innerHTML = `
         <div class="header">
           <h1>OpenClaw<span>UP</span> Local</h1>
-          <span class="version">${state.version}</span>
+          <div style="display:flex;align-items:center;gap:0.75rem">
+            <a href="http://localhost:18789" target="_blank" class="btn btn-green btn-sm" style="text-decoration:none">Open Chat</a>
+            <span class="version">${state.version}</span>
+          </div>
         </div>
 
         <!-- Status -->
@@ -832,12 +836,18 @@
         <!-- Channels -->
         <div class="card">
           <div class="card-title">Channels</div>
-          ${state.channels.map(ch => `
+          ${state.channels.map(ch => {
+            const chId = typeof ch === "string" ? ch : ch.id;
+            const botName = typeof ch === "object" ? ch.botName : null;
+            return `
             <div class="channel-item">
-              <span class="channel-name">${CHANNEL_LABELS[ch] || ch}</span>
-              <button class="btn btn-sm btn-red" onclick="removeChannel('${ch}')">Remove</button>
-            </div>
-          `).join("")}
+              <div>
+                <span class="channel-name">${CHANNEL_LABELS[chId] || chId}</span>
+                ${botName ? `<span style="margin-left:0.5rem;font-size:0.75rem;color:var(--text-muted)">${escapeHtml(botName)}</span>` : ''}
+              </div>
+              <button class="btn btn-sm btn-red" onclick="removeChannel('${chId}')">Remove</button>
+            </div>`;
+          }).join("")}
           ${state.channels.length === 0 ? '<p style="color:var(--text-muted);font-size:0.875rem">No channels configured</p>' : ''}
           <div class="btn-row">
             <button class="btn btn-sm btn-green" onclick="document.getElementById('add-form').classList.toggle('show')">+ Add Channel</button>

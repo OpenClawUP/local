@@ -256,6 +256,46 @@ function getChannelEnvKey(channelId) {
     .replace(/[^A-Z0-9]/g, "_")}_BOT_TOKEN`;
 }
 
+async function fetchBotName(channelId, token) {
+  if (!token) return null;
+  try {
+    if (channelId === "telegram") {
+      const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+      const data = await res.json();
+      if (data.ok && data.result) {
+        return data.result.username ? `@${data.result.username}` : data.result.first_name;
+      }
+    } else if (channelId === "discord") {
+      const res = await fetch("https://discord.com/api/v10/users/@me", {
+        headers: { Authorization: `Bot ${token}` },
+      });
+      const data = await res.json();
+      if (data.username) return data.username;
+    } else if (channelId === "slack") {
+      const res = await fetch("https://slack.com/api/auth.test", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.ok && data.user) return data.user;
+    }
+  } catch {
+    // Non-fatal: bot name is optional
+  }
+  return null;
+}
+
+function extractChannelInfo(config) {
+  const channels = [];
+  if (!config?.channels) return channels;
+  for (const [id, ch] of Object.entries(config.channels)) {
+    if (ch.enabled !== false) {
+      channels.push({ id, botName: ch.botName || null });
+    }
+  }
+  return channels;
+}
+
 function extractAvailableModels(config) {
   const items = [];
   const providers = config?.models?.providers ?? {};
@@ -528,13 +568,8 @@ function handleApi(req, res) {
     const uptime = getUptime();
     const config = readConfig();
 
-    // Extract enabled channels
-    const channels = [];
-    if (config?.channels) {
-      for (const [id, ch] of Object.entries(config.channels)) {
-        if (ch.enabled !== false) channels.push(id);
-      }
-    }
+    // Extract enabled channels with bot names
+    const channels = extractChannelInfo(config);
 
     // Extract current model
     const model = config?.agents?.defaults?.model?.primary || "unknown";
@@ -634,7 +669,7 @@ function handleApi(req, res) {
   if (path === "/api/config/channel" && req.method === "PUT") {
     let body = "";
     req.on("data", (chunk) => (body += chunk));
-    req.on("end", () => {
+    req.on("end", async () => {
       try {
         const { action, channelId, token } = JSON.parse(body);
         const config = readConfig();
@@ -663,6 +698,10 @@ function handleApi(req, res) {
             } else {
               channelConfig.token = `\${${envKey}}`;
             }
+
+            // Fetch bot name from platform API
+            const botName = await fetchBotName(channelId, token);
+            if (botName) channelConfig.botName = botName;
           }
 
           config.channels[channelId] = channelConfig;
