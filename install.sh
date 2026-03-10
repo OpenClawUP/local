@@ -452,21 +452,23 @@ setup_byok_ai() {
   provider_choice=${provider_choice:-1}
 
   case "$provider_choice" in
-    1) BYOK_PROVIDER="openai";     BYOK_BASE_URL="https://api.openai.com/v1";                                    BYOK_MODEL="gpt-5" ;;
-    2) BYOK_PROVIDER="google";     BYOK_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai";       BYOK_MODEL="gemini-2.5-flash" ;;
-    3) BYOK_PROVIDER="anthropic";  BYOK_BASE_URL="https://api.anthropic.com/v1";                                  BYOK_MODEL="claude-sonnet-4-20250514" ;;
-    4) BYOK_PROVIDER="deepseek";   BYOK_BASE_URL="https://api.deepseek.com/v1";                                   BYOK_MODEL="deepseek-chat" ;;
-    5) BYOK_PROVIDER="openrouter"; BYOK_BASE_URL="https://openrouter.ai/api/v1";                                  BYOK_MODEL="google/gemini-2.5-flash-preview" ;;
-    6) BYOK_PROVIDER="groq";       BYOK_BASE_URL="https://api.groq.com/openai/v1";                                BYOK_MODEL="meta-llama/llama-4-scout-17b-16e-instruct" ;;
-    7) BYOK_PROVIDER="mistral";    BYOK_BASE_URL="https://api.mistral.ai/v1";                                     BYOK_MODEL="mistral-large-latest" ;;
+    1) BYOK_PROVIDER="openai";     BYOK_BASE_URL="https://api.openai.com/v1";                                    BYOK_MODEL="gpt-5";                                          BYOK_DISPLAY="GPT-5" ;;
+    2) BYOK_PROVIDER="google";     BYOK_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai";       BYOK_MODEL="gemini-2.5-flash";                                BYOK_DISPLAY="Gemini 2.5 Flash" ;;
+    3) BYOK_PROVIDER="anthropic";  BYOK_BASE_URL="https://api.anthropic.com/v1";                                  BYOK_MODEL="claude-sonnet-4-20250514";                        BYOK_DISPLAY="Claude Sonnet 4" ;;
+    4) BYOK_PROVIDER="deepseek";   BYOK_BASE_URL="https://api.deepseek.com/v1";                                   BYOK_MODEL="deepseek-chat";                                   BYOK_DISPLAY="DeepSeek V3" ;;
+    5) BYOK_PROVIDER="openrouter"; BYOK_BASE_URL="https://openrouter.ai/api/v1";                                  BYOK_MODEL="google/gemini-2.5-flash-preview";                 BYOK_DISPLAY="Gemini 2.5 Flash (OpenRouter)" ;;
+    6) BYOK_PROVIDER="groq";       BYOK_BASE_URL="https://api.groq.com/openai/v1";                                BYOK_MODEL="meta-llama/llama-4-scout-17b-16e-instruct";       BYOK_DISPLAY="Llama 4 Scout" ;;
+    7) BYOK_PROVIDER="mistral";    BYOK_BASE_URL="https://api.mistral.ai/v1";                                     BYOK_MODEL="mistral-large-latest";                            BYOK_DISPLAY="Mistral Large" ;;
     0)
       echo ""
       echo -e "  ${DIM}API endpoint URL, e.g. https://api.example.com/v1${RESET}"
       read -rp "  API URL: " BYOK_BASE_URL < /dev/tty
-      read -rp "  Model name: " BYOK_MODEL < /dev/tty
+      read -rp "  Model ID: " BYOK_MODEL < /dev/tty
+      read -rp "  Display name (optional): " BYOK_DISPLAY < /dev/tty
+      BYOK_DISPLAY=${BYOK_DISPLAY:-$BYOK_MODEL}
       BYOK_PROVIDER="custom"
       ;;
-    *) BYOK_PROVIDER="openai"; BYOK_BASE_URL="https://api.openai.com/v1"; BYOK_MODEL="gpt-5" ;;
+    *) BYOK_PROVIDER="openai"; BYOK_BASE_URL="https://api.openai.com/v1"; BYOK_MODEL="gpt-5"; BYOK_DISPLAY="GPT-5" ;;
   esac
 
   read -rp "  API Key: " BYOK_API_KEY < /dev/tty
@@ -545,7 +547,7 @@ generate_config() {
           "apiKey": "${BYOK_API_KEY}",
           "api": "openai-completions",
           "models": [
-            { "id": "'"$BYOK_MODEL"'", "name": "'"$BYOK_MODEL"'" }
+            { "id": "'"$BYOK_MODEL"'", "name": "'"${BYOK_DISPLAY:-$BYOK_MODEL}"'" }
           ]
         }
       }'
