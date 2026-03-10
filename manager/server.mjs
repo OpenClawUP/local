@@ -330,6 +330,42 @@ function extractAvailableModels(config) {
   return items;
 }
 
+// Model presets per provider — so users can pick from a list
+const MODEL_PRESETS = {
+  openai:     [{ id: "gpt-5", name: "GPT-5" }, { id: "gpt-4.1", name: "GPT-4.1" }, { id: "gpt-4.1-mini", name: "GPT-4.1 Mini" }, { id: "gpt-4.1-nano", name: "GPT-4.1 Nano" }, { id: "o3", name: "o3" }, { id: "o4-mini", name: "o4-mini" }],
+  google:     [{ id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" }, { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" }, { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash" }],
+  anthropic:  [{ id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4" }, { id: "claude-opus-4-20250514", name: "Claude Opus 4" }, { id: "claude-haiku-3-5-20241022", name: "Claude Haiku 3.5" }],
+  deepseek:   [{ id: "deepseek-chat", name: "DeepSeek V3" }, { id: "deepseek-reasoner", name: "DeepSeek R1" }],
+  openrouter: [{ id: "google/gemini-2.5-flash-preview", name: "Gemini 2.5 Flash" }, { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4" }, { id: "openai/gpt-5", name: "GPT-5" }, { id: "deepseek/deepseek-chat", name: "DeepSeek V3" }],
+  groq:       [{ id: "meta-llama/llama-4-scout-17b-16e-instruct", name: "Llama 4 Scout" }, { id: "meta-llama/llama-4-maverick-17b-128e-instruct", name: "Llama 4 Maverick" }],
+  mistral:    [{ id: "mistral-large-latest", name: "Mistral Large" }, { id: "mistral-small-latest", name: "Mistral Small" }],
+};
+
+// Map API type or baseUrl to preset key
+function detectPresetKey(provider) {
+  const api = provider.api || "";
+  const url = (provider.baseUrl || "").toLowerCase();
+  if (api === "google-generative-ai" || url.includes("generativelanguage.googleapis.com")) return "google";
+  if (api === "anthropic-messages" || url.includes("api.anthropic.com")) return "anthropic";
+  if (url.includes("api.openai.com")) return "openai";
+  if (url.includes("api.deepseek.com")) return "deepseek";
+  if (url.includes("openrouter.ai")) return "openrouter";
+  if (url.includes("api.groq.com")) return "groq";
+  if (url.includes("api.mistral.ai")) return "mistral";
+  return null;
+}
+
+function getProviderInfo(config) {
+  const providers = config?.models?.providers ?? {};
+  const entries = Object.entries(providers);
+  if (entries.length === 0) return null;
+  const [id, provider] = entries[0];
+  const configured = (provider.models || []).map(m => m.id);
+  const presetKey = MODEL_PRESETS[id] ? id : detectPresetKey(provider);
+  const presets = (MODEL_PRESETS[presetKey] || []).filter(p => !configured.includes(p.id));
+  return { id, presets };
+}
+
 function getAutoStartEnabled() {
   if (IS_WINDOWS) {
     const info = getWindowsTaskInfo(WINDOWS_TASKS.openclaw);
@@ -595,6 +631,7 @@ function handleApi(req, res) {
 
     // Gateway token for WebChat auth
     const gatewayToken = config?.gateway?.auth?.token || null;
+    const providerInfo = getProviderInfo(config);
 
     return jsonResponse(res, {
       running,
@@ -606,6 +643,7 @@ function handleApi(req, res) {
       availableModels,
       aiMode: readEnv().OPENCLAWUP_API_KEY ? "proxy" : "byok",
       gatewayToken,
+      modelPresets: providerInfo?.presets || [],
     });
   }
 

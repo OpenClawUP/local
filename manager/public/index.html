@@ -653,17 +653,32 @@
       await doAction("restart");
     }
 
+    function onModelPresetChange(value) {
+      const custom = document.getElementById("custom-model-fields");
+      if (custom) custom.style.display = value === "__custom__" ? "" : "none";
+    }
+
     async function addModel() {
-      const modelId = document.getElementById("new-model-id")?.value?.trim();
-      if (!modelId) return alert("Please enter a model ID");
-      const displayName = document.getElementById("new-model-name")?.value?.trim() || modelId;
+      const presetEl = document.getElementById("new-model-preset");
+      const presetVal = presetEl?.value;
+      let modelId, displayName;
+
+      if (!presetEl || presetVal === "__custom__") {
+        modelId = document.getElementById("new-model-id")?.value?.trim();
+        if (!modelId) return alert("Please enter a model ID");
+        displayName = document.getElementById("new-model-name")?.value?.trim() || modelId;
+      } else {
+        const preset = state.modelPresets.find(p => p.id === presetVal);
+        modelId = preset.id;
+        displayName = preset.name;
+      }
+
       const res = await api("/api/config/model", {
         method: "POST",
         body: JSON.stringify({ modelId, displayName }),
       });
       if (res?.error) return alert(res.error);
       document.getElementById("add-model-form")?.classList.remove("show");
-      // Switch to the new model and restart
       if (res?.fullId) await changeModel(res.fullId);
       else await refresh();
     }
@@ -907,8 +922,16 @@
             <button class="btn btn-sm btn-green" onclick="document.getElementById('add-model-form').classList.toggle('show')">+ Add Model</button>
           </div>
           <div class="add-form" id="add-model-form">
-            <input type="text" id="new-model-id" placeholder="Model ID (e.g. gemini-2.5-pro)">
-            <input type="text" id="new-model-name" placeholder="Display name (optional)">
+            ${state.modelPresets && state.modelPresets.length > 0 ? `
+              <select id="new-model-preset" onchange="onModelPresetChange(this.value)">
+                ${state.modelPresets.map(p => `<option value="${p.id}">${p.name} (${p.id})</option>`).join("")}
+                <option value="__custom__">Custom model...</option>
+              </select>
+            ` : ''}
+            <div id="custom-model-fields" style="${state.modelPresets && state.modelPresets.length > 0 ? 'display:none' : ''}">
+              <input type="text" id="new-model-id" placeholder="Model ID (e.g. gemini-2.5-pro)">
+              <input type="text" id="new-model-name" placeholder="Display name (optional)">
+            </div>
             <div class="btn-row">
               <button class="btn btn-green" onclick="addModel()">Add</button>
             </div>
