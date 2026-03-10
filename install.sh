@@ -271,7 +271,7 @@ select_channel() {
   echo ""
 
   while true; do
-    read -rp "  Enter number (1): " choice
+    read -rp "  Enter number (1): " choice < /dev/tty
     choice=${choice:-1}
 
     if [[ "$choice" == "0" ]]; then
@@ -280,7 +280,7 @@ select_channel() {
         echo -e "  ${CYAN}[$((i+1))]${RESET} ${CHANNELS_ALL[$i]}"
       done
       echo ""
-      read -rp "  Enter number: " choice
+      read -rp "  Enter number: " choice < /dev/tty
       if [[ "$choice" -ge 1 && "$choice" -le "${#CHANNELS_ALL[@]}" ]]; then
         SELECTED_CHANNEL="${CHANNELS_ALL[$((choice-1))]}"
         break
@@ -340,7 +340,7 @@ get_bot_token() {
   esac
 
   while true; do
-    read -rp "  Bot Token: " BOT_TOKEN
+    read -rp "  Bot Token: " BOT_TOKEN < /dev/tty
     if [[ -n "$BOT_TOKEN" ]]; then
       success "Token saved"
       break
@@ -361,7 +361,7 @@ select_ai() {
   echo ""
 
   while true; do
-    read -rp "  Enter number (1): " ai_choice
+    read -rp "  Enter number (1): " ai_choice < /dev/tty
     ai_choice=${ai_choice:-1}
 
     case "$ai_choice" in
@@ -424,7 +424,7 @@ setup_proxy_ai() {
   echo ""
   warn "Timed out waiting for setup"
   echo ""
-  read -rp "  Paste your API Key manually (or press Enter to skip): " PROXY_API_KEY
+  read -rp "  Paste your API Key manually (or press Enter to skip): " PROXY_API_KEY < /dev/tty
 
   if [[ -n "$PROXY_API_KEY" ]]; then
     success "API Key saved"
@@ -443,21 +443,21 @@ setup_byok_ai() {
   echo -e "  ${CYAN}[3]${RESET} Other OpenAI-compatible API"
   echo ""
 
-  read -rp "  Enter number (1): " provider_choice
+  read -rp "  Enter number (1): " provider_choice < /dev/tty
   provider_choice=${provider_choice:-1}
 
   case "$provider_choice" in
     1) BYOK_PROVIDER="openai";    BYOK_BASE_URL="https://api.openai.com/v1";    BYOK_MODEL="gpt-5" ;;
     2) BYOK_PROVIDER="openrouter"; BYOK_BASE_URL="https://openrouter.ai/api/v1"; BYOK_MODEL="google/gemini-3-flash-preview" ;;
     3)
-      read -rp "  Base URL: " BYOK_BASE_URL
-      read -rp "  Model name: " BYOK_MODEL
+      read -rp "  Base URL: " BYOK_BASE_URL < /dev/tty
+      read -rp "  Model name: " BYOK_MODEL < /dev/tty
       BYOK_PROVIDER="custom"
       ;;
     *) BYOK_PROVIDER="openai"; BYOK_BASE_URL="https://api.openai.com/v1"; BYOK_MODEL="gpt-5" ;;
   esac
 
-  read -rp "  API Key: " BYOK_API_KEY
+  read -rp "  API Key: " BYOK_API_KEY < /dev/tty
   if [[ -z "$BYOK_API_KEY" ]]; then
     fail "API Key is required for BYOK mode"
   fi
