@@ -37,8 +37,8 @@ function jsonResponse(res, data, status = 200) {
 function readConfig() {
   try {
     const raw = readFileSync(CONFIG_PATH, "utf-8");
-    // Strip JSON5 comments for basic parsing
-    const cleaned = raw.replace(/\/\/.*$/gm, "").replace(/,\s*([}\]])/g, "$1");
+    // Strip JSON5 full-line comments only (avoids destroying URLs like https://...)
+    const cleaned = raw.replace(/^\s*\/\/.*$/gm, "").replace(/,\s*([}\]])/g, "$1");
     return JSON.parse(cleaned);
   } catch {
     return null;
