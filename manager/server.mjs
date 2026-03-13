@@ -492,17 +492,17 @@ let _skillsCacheTime = 0;
 
 // Embedded fallback (used when offline or API unreachable)
 const FALLBACK_SKILLS = [
-  { id: "JimLiuxinghai/find-skills", name: "Find Skills", essential: true, installCmd: "clawhub install JimLiuxinghai/find-skills", description: "Discover and install agent skills", clawhubUrl: "https://clawhub.ai/JimLiuxinghai/find-skills" },
-  { id: "spclaudehome/skill-vetter", name: "Skill Vetter", essential: true, installCmd: "clawhub install spclaudehome/skill-vetter", description: "Security-first skill vetting", clawhubUrl: "https://clawhub.ai/spclaudehome/skill-vetter" },
-  { id: "pskoett/self-improving-agent", name: "Self-Improving Agent", essential: true, installCmd: "clawhub install pskoett/self-improving-agent", description: "Logs learnings for continuous improvement", clawhubUrl: "https://clawhub.ai/pskoett/self-improving-agent" },
-  { id: "steipete/brave-search", name: "Brave Search", essential: false, installCmd: "clawhub install steipete/brave-search", description: "Web search via Brave Search API", clawhubUrl: "https://clawhub.ai/steipete/brave-search" },
-  { id: "summarize", name: "Summarize", essential: false, installCmd: "clawhub install summarize", description: "Summarize URLs, PDFs, and files", clawhubUrl: "https://clawhub.ai/openclaw/summarize" },
-  { id: "bert-builder/tavily", name: "Tavily Search", essential: false, installCmd: "clawhub install bert-builder/tavily", description: "AI-optimized web search", clawhubUrl: "https://clawhub.ai/bert-builder/tavily" },
-  { id: "weather", name: "Weather", essential: false, installCmd: "clawhub install weather", description: "Current weather and forecasts", clawhubUrl: "https://clawhub.ai/openclaw/weather" },
-  { id: "abe238/youtube-summarizer", name: "YouTube Summarizer", essential: false, installCmd: "clawhub install abe238/youtube-summarizer", description: "YouTube transcripts and summaries", clawhubUrl: "https://clawhub.ai/abe238/youtube-summarizer" },
-  { id: "brandonwise/ai-humanizer", name: "Humanize AI Text", essential: false, installCmd: "clawhub install brandonwise/ai-humanizer", description: "Make AI text sound natural", clawhubUrl: "https://clawhub.ai/brandonwise/ai-humanizer" },
-  { id: "TheSethRose/agent-browser", name: "Agent Browser", essential: false, installCmd: "clawhub install TheSethRose/agent-browser", description: "Headless browser automation", clawhubUrl: "https://clawhub.ai/TheSethRose/agent-browser" },
-  { id: "chindden/skill-creator", name: "Skill Creator", essential: false, installCmd: "clawhub install chindden/skill-creator", description: "Guide for creating your own skills", clawhubUrl: "https://clawhub.ai/chindden/skill-creator" },
+  { id: "JimLiuxinghai/find-skills", name: "Find Skills", essential: true, installCmd: "clawhub install JimLiuxinghai/find-skills", description: "Discover and install agent skills", githubUrl: "https://github.com/openclaw/skills/tree/main/skills/jimliuxinghai/find-skills" },
+  { id: "spclaudehome/skill-vetter", name: "Skill Vetter", essential: true, installCmd: "clawhub install spclaudehome/skill-vetter", description: "Security-first skill vetting", githubUrl: "https://github.com/openclaw/skills/tree/main/skills/spclaudehome/skill-vetter" },
+  { id: "pskoett/self-improving-agent", name: "Self-Improving Agent", essential: true, installCmd: "clawhub install pskoett/self-improving-agent", description: "Logs learnings for continuous improvement", githubUrl: "https://github.com/openclaw/skills/tree/main/skills/pskoett/self-improving-agent" },
+  { id: "steipete/brave-search", name: "Brave Search", essential: false, installCmd: "clawhub install steipete/brave-search", description: "Web search via Brave Search API", githubUrl: "https://github.com/openclaw/skills/tree/main/skills/steipete/brave-search" },
+  { id: "summarize", name: "Summarize", essential: false, installCmd: "clawhub install summarize", description: "Summarize URLs, PDFs, and files", githubUrl: "https://github.com/openclaw/openclaw/tree/main/skills/summarize" },
+  { id: "bert-builder/tavily", name: "Tavily Search", essential: false, installCmd: "clawhub install bert-builder/tavily", description: "AI-optimized web search", githubUrl: "https://github.com/openclaw/skills/tree/main/skills/bert-builder/tavily" },
+  { id: "weather", name: "Weather", essential: false, installCmd: "clawhub install weather", description: "Current weather and forecasts", githubUrl: "https://github.com/openclaw/openclaw/tree/main/skills/weather" },
+  { id: "abe238/youtube-summarizer", name: "YouTube Summarizer", essential: false, installCmd: "clawhub install abe238/youtube-summarizer", description: "YouTube transcripts and summaries", githubUrl: "https://github.com/openclaw/skills/tree/main/skills/abe238/youtube-summarizer" },
+  { id: "brandonwise/ai-humanizer", name: "Humanize AI Text", essential: false, installCmd: "clawhub install brandonwise/ai-humanizer", description: "Make AI text sound natural", githubUrl: "https://github.com/openclaw/skills/tree/main/skills/brandonwise/ai-humanizer" },
+  { id: "TheSethRose/agent-browser", name: "Agent Browser", essential: false, installCmd: "clawhub install TheSethRose/agent-browser", description: "Headless browser automation", githubUrl: "https://github.com/openclaw/skills/tree/main/skills/thesethrose/agent-browser" },
+  { id: "chindden/skill-creator", name: "Skill Creator", essential: false, installCmd: "clawhub install chindden/skill-creator", description: "Guide for creating your own skills", githubUrl: "https://github.com/openclaw/skills/tree/main/skills/chindden/skill-creator" },
 ];
 
 async function fetchSkillPresets() {
