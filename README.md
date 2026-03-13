@@ -49,6 +49,25 @@ Your bot's personality and behavior are defined by a **Skill** — a `SOUL.md` f
 
 Changes take effect on the next message — no restart needed.
 
+## Security
+
+The management console is protected by a token-based authentication system. During installation, a unique access token is generated and displayed in the terminal:
+
+```
+🔑 Manager access token: a1b2c3d4e5f6...
+   Save this token — you'll need it to access http://localhost:8080
+```
+
+When you first open the management page, you'll be asked to enter this token. The token is stored in your browser's local storage for convenience.
+
+The token file is stored at `~/.openclawup-local/auth-token`. Read-only endpoints (`GET /api/status` and `GET /api/logs`) are accessible without a token for monitoring purposes. All mutation endpoints require authentication.
+
+If you lose your token, you can read it directly:
+
+```bash
+cat ~/.openclawup-local/auth-token
+```
+
 ## Management
 
 After installation, manage your bot through the web interface:
@@ -63,6 +82,7 @@ From the management page you can:
 - Add or remove chat channels
 - Switch AI models
 - Toggle auto-start on login
+- Check for and install updates
 - Top up OpenClawUP credits when using the proxy
 
 The manager reads available models from your current config, so BYOK setups only show the models you actually configured.
@@ -78,6 +98,35 @@ You can also enable additional channels from the local manager, including IRC, M
 **Bring your own key**: Use any OpenAI-compatible API key and endpoint. You have full control over which models and providers to use.
 
 **OpenClawUP AI proxy**: All major AI models available — Claude, GPT, Gemini, DeepSeek, Qwen, and more. Smart auto-routing picks the best model for each task by default. Pay-as-you-go, no upfront commitment.
+
+## Updates
+
+The management page checks for updates automatically on each page load. When a new version is available, a notification bar appears at the top of the page with an "Update Now" button.
+
+Clicking "Update Now" will:
+
+1. Update OpenClaw to the latest version (`npm install -g openclaw@latest`)
+2. Download the latest manager files from GitHub (server.mjs + public/index.html)
+3. Prompt you to restart the manager service if needed (the page will auto-reload)
+
+To update manually from the terminal:
+
+```bash
+# Update OpenClaw
+npm install -g openclaw@latest
+
+# Update manager files
+curl -fsSL "https://raw.githubusercontent.com/openclawup/local/main/manager/server.mjs" -o ~/.openclawup-local/server.mjs
+curl -fsSL "https://raw.githubusercontent.com/openclawup/local/main/manager/public/index.html" -o ~/.openclawup-local/public/index.html
+
+# Restart manager (macOS)
+launchctl stop com.openclawup.manager && launchctl start com.openclawup.manager
+
+# Restart manager (Linux)
+systemctl --user restart openclawup-manager.service
+```
+
+The update check caches the GitHub API response for 1 hour to avoid rate limits.
 
 ## Uninstall
 
@@ -115,7 +164,7 @@ Windows download: [`uninstall.bat`](https://github.com/OpenClawUP/local/releases
 | Skills | AI-generated + presets | AI-generated + presets |
 | Document search | — | Built-in QMD engine |
 | Management | Local web UI | Cloud dashboard |
-| Updates | Manual | Automatic |
+| Updates | One-click from manager | Automatic |
 
 ## License
 

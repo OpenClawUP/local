@@ -504,6 +504,87 @@
 
     .upgrade a:hover { opacity: 0.9; }
 
+    /* Auth modal */
+    .auth-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .auth-modal {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 2rem;
+      max-width: 400px;
+      width: 90%;
+    }
+
+    .auth-modal h2 {
+      font-size: 1.25rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .auth-modal p {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      line-height: 1.5;
+    }
+
+    .auth-modal input {
+      width: 100%;
+      margin-bottom: 0.75rem;
+    }
+
+    /* Update banner */
+    .update-banner {
+      background: rgba(249,115,22,0.1);
+      border: 1px solid rgba(249,115,22,0.25);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .update-banner-text {
+      font-size: 0.875rem;
+      color: var(--orange);
+      font-weight: 500;
+    }
+
+    .btn-orange {
+      background: rgba(249,115,22,0.15);
+      border-color: rgba(249,115,22,0.3);
+      color: var(--orange);
+    }
+
+    .btn-orange:hover {
+      background: rgba(249,115,22,0.25);
+    }
+
+    /* Token display */
+    .token-display {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .token-display:hover {
+      color: var(--text);
+    }
+
     /* Loading */
     .loading {
       text-align: center;
@@ -661,6 +742,41 @@
 
   <script>
     const API = "";
+    let authToken = localStorage.getItem("managerToken") || "";
+
+    function showAuthModal() {
+      document.getElementById("app").innerHTML = `
+        <div class="auth-overlay">
+          <div class="auth-modal">
+            <h2>Access Token Required</h2>
+            <p>Enter your manager access token to continue. The token was displayed in your terminal after installation.</p>
+            <input type="text" id="auth-token-input" placeholder="Paste your access token here">
+            <button class="btn btn-green" onclick="submitAuth()" style="width:100%">Unlock</button>
+          </div>
+        </div>
+      `;
+      setTimeout(() => document.getElementById("auth-token-input")?.focus(), 100);
+    }
+
+    function submitAuth() {
+      const input = document.getElementById("auth-token-input");
+      const token = input?.value?.trim();
+      if (!token) return;
+      authToken = token;
+      localStorage.setItem("managerToken", token);
+      refresh();
+    }
+
+    function copyToken() {
+      if (!authToken) return;
+      navigator.clipboard.writeText(authToken)
+        .then(() => {
+          const el = document.getElementById("token-copied");
+          if (el) { el.textContent = "Copied!"; setTimeout(() => { el.textContent = ""; }, 1500); }
+        })
+        .catch(() => {});
+    }
+
     const ALL_CHANNELS = [
       "telegram", "discord", "whatsapp", "slack", "signal",
       "irc", "matrix", "mattermost", "microsoft-teams", "google-chat",
@@ -707,6 +823,8 @@
       skill: null,
       skillGenerating: false,
       skillDraft: null,
+      updateInfo: null,
+      updating: false,
     };
 
     const LOG_SOURCES = {
@@ -717,31 +835,82 @@
     };
 
     async function api(path, opts = {}) {
-      const res = await fetch(API + path, {
-        headers: { "Content-Type": "application/json" },
-        ...opts,
-      });
+      const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+      if (authToken) {
+        headers["Authorization"] = `Bearer ${authToken}`;
+      }
+      const res = await fetch(API + path, { ...opts, headers });
+      if (res.status === 401) {
+        localStorage.removeItem("managerToken");
+        authToken = "";
+        showAuthModal();
+        throw new Error("Unauthorized");
+      }
       return res.json();
     }
 
     async function refresh() {
-      const [status, logs, diagnostics, skill] = await Promise.all([
-        api("/api/status"),
-        api(`/api/logs?source=${encodeURIComponent(state.selectedLogSource)}&lines=${state.logLines}`),
-        api("/api/diagnostics"),
-        api("/api/config/skill"),
-      ]);
-      state = {
-        ...status,
-        selectedLogSource: state.selectedLogSource,
-        logLines: state.logLines,
-        logs,
-        diagnostics,
-        skill,
-        skillGenerating: state.skillGenerating,
-        skillDraft: state.skillDraft,
-      };
+      try {
+        const [status, logs, diagnostics, skill] = await Promise.all([
+          api("/api/status"),
+          api(`/api/logs?source=${encodeURIComponent(state.selectedLogSource)}&lines=${state.logLines}`),
+          api("/api/diagnostics"),
+          api("/api/config/skill"),
+        ]);
+        state = {
+          ...status,
+          selectedLogSource: state.selectedLogSource,
+          logLines: state.logLines,
+          logs,
+          diagnostics,
+          skill,
+          skillGenerating: state.skillGenerating,
+          skillDraft: state.skillDraft,
+          updateInfo: state.updateInfo,
+          updating: state.updating,
+        };
+        render();
+        // Check for updates in background (non-blocking)
+        checkForUpdates();
+      } catch (e) {
+        if (e.message === "Unauthorized") return; // Auth modal already shown
+        throw e;
+      }
+    }
+
+    async function checkForUpdates() {
+      try {
+        const info = await api("/api/updates");
+        state.updateInfo = info;
+        render();
+      } catch {
+        // Non-fatal: update check failure should not break the UI
+      }
+    }
+
+    async function performUpdate() {
+      if (state.updating) return;
+      if (!confirm("This will update OpenClaw and the manager. Continue?")) return;
+      state.updating = true;
       render();
+      try {
+        const result = await api("/api/update", { method: "POST" });
+        state.updating = false;
+        state.updateInfo = null;
+        if (result.managerRestartNeeded) {
+          alert("Update complete. The manager service needs to restart. The page will reload in a few seconds.");
+          setTimeout(() => location.reload(), 5000);
+        } else if (result.errors?.length > 0) {
+          alert("Update finished with errors:\\n" + result.errors.join("\\n"));
+        } else {
+          alert("Update complete!");
+        }
+        await refresh();
+      } catch (e) {
+        state.updating = false;
+        render();
+        alert("Update failed: " + (e.message || "Unknown error"));
+      }
     }
 
     async function doAction(action) {
@@ -847,7 +1016,15 @@
 
     async function downloadDiagnostics() {
       try {
-        const res = await fetch("/api/diagnostics/download");
+        const dlHeaders = {};
+        if (authToken) dlHeaders["Authorization"] = `Bearer ${authToken}`;
+        const res = await fetch("/api/diagnostics/download", { headers: dlHeaders });
+        if (res.status === 401) {
+          localStorage.removeItem("managerToken");
+          authToken = "";
+          showAuthModal();
+          return;
+        }
         if (!res.ok) {
           throw new Error("Download failed");
         }
@@ -1009,10 +1186,22 @@
       const openclawAutoStartPath = paths.openclawAutoStart || paths.openclawLaunchAgent || "unknown";
       const managerAutoStartPath = paths.managerAutoStart || paths.managerLaunchAgent || "unknown";
 
+      const maskedToken = authToken ? authToken.slice(0, 4) + "..." + authToken.slice(-4) : "";
+      const updateBanner = state.updateInfo?.updateAvailable
+        ? `<div class="update-banner">
+             <span class="update-banner-text">Update available: v${escapeHtml(state.updateInfo.latestManagerVersion)}</span>
+             <button class="btn btn-sm btn-orange" onclick="performUpdate()" ${state.updating ? 'disabled' : ''}>
+               ${state.updating ? 'Updating...' : 'Update Now'}
+             </button>
+           </div>`
+        : '';
+
       document.getElementById("app").innerHTML = `
+        ${updateBanner}
         <div class="header">
           <h1>OpenClaw<span>UP</span> Local</h1>
           <div style="display:flex;align-items:center;gap:0.75rem">
+            ${authToken ? `<span class="token-display" onclick="copyToken()" title="Click to copy token">&#128274; ${escapeHtml(maskedToken)} <span id="token-copied" style="color:var(--green);font-size:0.625rem"></span></span>` : ''}
             ${state.running ? `<a href="http://localhost:18789${state.gatewayToken ? '?token=' + encodeURIComponent(state.gatewayToken) : ''}" target="_blank" class="btn btn-green btn-sm" style="text-decoration:none">Open Chat</a>` : ''}
             <span class="version">${state.version}</span>
           </div>
@@ -1268,10 +1457,26 @@
       `;
     }
 
-    // Initial load
-    refresh();
+    // Initial load — check auth first
+    async function init() {
+      if (!authToken) {
+        // Try to see if no token is required (fresh install, open access)
+        try {
+          const res = await fetch(API + "/api/status");
+          if (res.status === 401) {
+            showAuthModal();
+            return;
+          }
+          // No auth needed or token not set yet — proceed
+        } catch {
+          // Server not reachable
+        }
+      }
+      refresh();
+    }
+    init();
     // Auto-refresh every 30s
-    setInterval(refresh, 30000);
+    setInterval(() => { if (authToken || !document.querySelector(".auth-overlay")) refresh(); }, 30000);
   </script>
 </body>
 </html>

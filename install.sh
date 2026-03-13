@@ -711,6 +711,11 @@ install_manager() {
     curl -fsSL "https://raw.githubusercontent.com/openclawup/local/main/manager/public/index.html" -o "$MANAGER_DIR/public/index.html"
   fi
 
+  # Generate auth token for the manager
+  AUTH_TOKEN=$(openssl rand -hex 16 2>/dev/null || od -An -tx1 -N16 /dev/urandom | tr -d ' \n')
+  echo -n "$AUTH_TOKEN" > "$MANAGER_DIR/auth-token"
+  chmod 600 "$MANAGER_DIR/auth-token"
+
   success "Management console installed"
 }
 
@@ -994,6 +999,14 @@ complete() {
   echo ""
   echo -e "${GREEN}${BOLD}  ✅ Installation complete!${RESET}"
   echo ""
+
+  # Display auth token
+  if [[ -n "${AUTH_TOKEN:-}" ]]; then
+    echo -e "  ${YELLOW}${BOLD}🔑 Manager access token:${RESET} ${BOLD}${AUTH_TOKEN}${RESET}"
+    echo -e "  ${DIM}   Save this token — you'll need it to access http://localhost:${MANAGER_PORT}${RESET}"
+    echo ""
+  fi
+
   echo -e "  ${BOLD}What's next:${RESET}"
   echo ""
 

@@ -3,7 +3,9 @@ import { readFileSync, writeFileSync, existsSync, statSync, mkdtempSync, mkdirSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync, execSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 
+const MANAGER_VERSION = "1.0.0";
 const PORT = process.env.PORT || 8080;
 const HOME_DIR = process.env.USERPROFILE || process.env.HOME;
 const IS_WINDOWS = process.platform === "win32";
@@ -22,12 +24,58 @@ const OPENCLAW_AUTOSTART_REF = IS_WINDOWS ? `Task Scheduler/${WINDOWS_TASKS.open
 const MANAGER_AUTOSTART_REF = IS_WINDOWS ? `Task Scheduler/${WINDOWS_TASKS.manager}` : MANAGER_PLIST_PATH;
 const CHANNEL_META_PATH = join(MANAGER_DIR, "channel-meta.json");
 const SKILL_META_PATH = join(MANAGER_DIR, "skill-meta.json");
+const AUTH_TOKEN_PATH = join(MANAGER_DIR, "auth-token");
 const LOG_SOURCES = {
   gateway: join(OPENCLAW_DIR, "logs", "gateway.log"),
   gatewayError: join(OPENCLAW_DIR, "logs", "gateway.err"),
   manager: join(MANAGER_DIR, "manager.log"),
   managerError: join(MANAGER_DIR, "manager.err"),
 };
+
+// ── Auth ────────────────────────────────────────────────────
+
+function getOrCreateAuthToken() {
+  try {
+    if (existsSync(AUTH_TOKEN_PATH)) {
+      const token = readFileSync(AUTH_TOKEN_PATH, "utf-8").trim();
+      if (token.length > 0) return token;
+    }
+  } catch {}
+  const token = randomBytes(16).toString("hex");
+  writeFileSync(AUTH_TOKEN_PATH, token, "utf-8");
+  return token;
+}
+
+function checkAuth(req) {
+  let expected;
+  try {
+    if (!existsSync(AUTH_TOKEN_PATH)) return true; // No token file yet — open access
+    expected = readFileSync(AUTH_TOKEN_PATH, "utf-8").trim();
+    if (!expected) return true;
+  } catch {
+    return true;
+  }
+
+  // Check Authorization: Bearer <token> header
+  const authHeader = req.headers["authorization"] || "";
+  if (authHeader.startsWith("Bearer ")) {
+    const headerToken = authHeader.slice(7).trim();
+    if (headerToken === expected) return true;
+  }
+
+  // Check ?token=xxx query param (for browser access)
+  const url = new URL(req.url, `http://localhost:${PORT}`);
+  const queryToken = url.searchParams.get("token");
+  if (queryToken && queryToken === expected) return true;
+
+  return false;
+}
+
+// ── Update cache ────────────────────────────────────────────
+
+let _updateCache = null;
+let _updateCacheTime = 0;
+const UPDATE_CACHE_TTL = 3600000; // 1 hour
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -809,7 +857,7 @@ function createDiagnosticsBundle() {
 
 // ── API Routes ──────────────────────────────────────────────
 
-function handleApi(req, res) {
+async function handleApi(req, res) {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const path = url.pathname;
 
@@ -818,9 +866,36 @@ function handleApi(req, res) {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
     });
     return res.end();
+  }
+
+  // Auth: read-only status/logs endpoints are open; everything else needs a token.
+  // GET /api/auth/token has its own auth logic below.
+  const isOpenEndpoint =
+    (path === "/api/status" && req.method === "GET") ||
+    (path === "/api/logs" && req.method === "GET");
+  const isAuthEndpoint = path === "/api/auth/token";
+
+  if (!isOpenEndpoint && !isAuthEndpoint && !checkAuth(req)) {
+    return jsonResponse(res, { error: "Unauthorized", authRequired: true }, 401);
+  }
+
+  // GET /api/auth/token — first-time setup or retrieve with existing token
+  if (path === "/api/auth/token" && req.method === "GET") {
+    const tokenExists = existsSync(AUTH_TOKEN_PATH) && readFileSync(AUTH_TOKEN_PATH, "utf-8").trim().length > 0;
+    if (!tokenExists) {
+      // First-time: generate and return
+      const token = getOrCreateAuthToken();
+      return jsonResponse(res, { token });
+    }
+    // Token already exists — require the current token
+    if (!checkAuth(req)) {
+      return jsonResponse(res, { error: "Unauthorized", authRequired: true }, 401);
+    }
+    const token = readFileSync(AUTH_TOKEN_PATH, "utf-8").trim();
+    return jsonResponse(res, { token });
   }
 
   // GET /api/status
@@ -1213,6 +1288,94 @@ Output ONLY the SOUL.md content. No explanations, no outer code fences wrapping 
       }
     });
     return;
+  }
+
+  // GET /api/updates — check for available updates
+  if (path === "/api/updates" && req.method === "GET") {
+    const currentOpenclawVersion = getOpenClawVersion();
+    const currentManagerVersion = MANAGER_VERSION;
+
+    // Use cached GitHub response if still fresh
+    const now = Date.now();
+    if (_updateCache && (now - _updateCacheTime) < UPDATE_CACHE_TTL) {
+      return jsonResponse(res, {
+        currentManagerVersion,
+        latestManagerVersion: _updateCache.tag_name?.replace(/^v/, "") || null,
+        currentOpenclawVersion,
+        updateAvailable: _updateCache._updateAvailable,
+        releaseUrl: _updateCache.html_url || null,
+      });
+    }
+
+    try {
+      const ghRes = await fetch("https://api.github.com/repos/OpenClawUP/local/releases/latest", {
+        headers: { "User-Agent": "OpenClawUP-Local-Manager" },
+      });
+      if (!ghRes.ok) throw new Error(`GitHub API returned ${ghRes.status}`);
+      const release = await ghRes.json();
+      const latestVersion = (release.tag_name || "").replace(/^v/, "");
+      const updateAvailable = latestVersion && latestVersion !== currentManagerVersion;
+      release._updateAvailable = updateAvailable;
+      _updateCache = release;
+      _updateCacheTime = now;
+      return jsonResponse(res, {
+        currentManagerVersion,
+        latestManagerVersion: latestVersion || null,
+        currentOpenclawVersion,
+        updateAvailable,
+        releaseUrl: release.html_url || null,
+      });
+    } catch {
+      return jsonResponse(res, {
+        currentManagerVersion,
+        latestManagerVersion: null,
+        currentOpenclawVersion,
+        updateAvailable: null,
+        releaseUrl: null,
+      });
+    }
+  }
+
+  // POST /api/update — perform update
+  if (path === "/api/update" && req.method === "POST") {
+    const results = { openclawUpdated: false, managerUpdated: false, managerRestartNeeded: false, errors: [] };
+
+    // 1. Update OpenClaw via npm
+    try {
+      execSync("npm install -g openclaw@latest 2>&1", { encoding: "utf-8", timeout: 120000 });
+      results.openclawUpdated = true;
+      results.newOpenclawVersion = getOpenClawVersion();
+    } catch (e) {
+      results.errors.push(`OpenClaw update failed: ${e.message || "unknown error"}`);
+    }
+
+    // 2. Update manager files from GitHub
+    try {
+      const baseUrl = "https://raw.githubusercontent.com/OpenClawUP/local/main/manager";
+      const serverRes = await fetch(`${baseUrl}/server.mjs`, { headers: { "User-Agent": "OpenClawUP-Local-Manager" } });
+      if (!serverRes.ok) throw new Error(`Failed to download server.mjs: ${serverRes.status}`);
+      const serverContent = await serverRes.text();
+
+      const htmlRes = await fetch(`${baseUrl}/public/index.html`, { headers: { "User-Agent": "OpenClawUP-Local-Manager" } });
+      if (!htmlRes.ok) throw new Error(`Failed to download index.html: ${htmlRes.status}`);
+      const htmlContent = await htmlRes.text();
+
+      writeFileSync(join(MANAGER_DIR, "server.mjs"), serverContent, "utf-8");
+      mkdirSync(join(MANAGER_DIR, "public"), { recursive: true });
+      writeFileSync(join(MANAGER_DIR, "public", "index.html"), htmlContent, "utf-8");
+
+      results.managerUpdated = true;
+      results.managerRestartNeeded = true;
+    } catch (e) {
+      results.errors.push(`Manager update failed: ${e.message || "unknown error"}`);
+    }
+
+    // Invalidate update cache
+    _updateCache = null;
+    _updateCacheTime = 0;
+
+    const status = results.errors.length === 0 ? 200 : 207;
+    return jsonResponse(res, results, status);
   }
 
   return jsonResponse(res, { error: "Not found" }, 404);
