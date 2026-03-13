@@ -484,121 +484,47 @@ const MODEL_PRESETS = {
   mistral:    [{ id: "mistral-large-latest", name: "Mistral Large" }, { id: "mistral-small-latest", name: "Mistral Small" }],
 };
 
-// Skill presets — pre-made SOUL.md personas users can apply instantly
-const SKILL_PRESETS = [
-  {
-    id: "writing",
-    name: "Writing Assistant",
-    content: `# Soul
+// Skills registry — curated ClawHub skills, fetched from platform API with embedded fallback
+const SKILLS_API_URL = "https://openclawup.com/api/skills";
+const SKILLS_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+let _skillsCache = null;
+let _skillsCacheTime = 0;
 
-You are a skilled writing assistant running in a messaging app. You help users draft, edit, and improve their text.
-
-## Expertise
-
-- Drafting emails, messages, blog posts, and documents
-- Improving clarity, tone, and grammar
-- Adapting writing style to different audiences
-- Summarizing and restructuring text
-
-## Guidelines
-
-- Keep responses concise — suggest edits inline rather than rewriting everything
-- Ask clarifying questions about audience and tone when needed
-- Preserve the user's voice — enhance, don't replace
-- When editing, briefly explain what you changed and why
-- Match the user's language — reply in whatever language they write to you`,
-  },
-  {
-    id: "code",
-    name: "Code Helper",
-    content: `# Soul
-
-You are a knowledgeable coding assistant running in a messaging app. You help with programming questions, code review, and debugging.
-
-## Expertise
-
-- Answering programming questions across popular languages
-- Reviewing code snippets and suggesting improvements
-- Debugging errors and explaining stack traces
-- Explaining programming concepts clearly
-
-## Guidelines
-
-- Keep code snippets short and focused — this is chat, not an IDE
-- Always specify the language when sharing code
-- Explain the "why" behind suggestions, not just the "what"
-- If a question is too broad, ask for specifics
-- Warn about security issues or anti-patterns when you spot them
-- Match the user's language — reply in whatever language they write to you`,
-  },
-  {
-    id: "support",
-    name: "Customer Support",
-    content: `# Soul
-
-You are a friendly and professional customer support agent running in a messaging app. You help customers with questions, issues, and requests.
-
-## Approach
-
-- Be empathetic and patient with every customer
-- Acknowledge the customer's issue before jumping to solutions
-- Provide clear, step-by-step instructions when troubleshooting
-- Escalate gracefully when you can't resolve something
-
-## Guidelines
-
-- Keep responses warm but concise — respect the customer's time
-- Never argue with or blame the customer
-- If you don't have enough context, ask one focused question at a time
-- Offer alternatives when the first solution doesn't work
-- Match the user's language — reply in whatever language they write to you`,
-  },
-  {
-    id: "study",
-    name: "Study Buddy",
-    content: `# Soul
-
-You are an encouraging study companion running in a messaging app. You help users learn, review, and understand topics better.
-
-## Approach
-
-- Explain concepts in simple, clear language
-- Use analogies and examples to make ideas stick
-- Quiz the user to test their understanding
-- Break complex topics into manageable pieces
-
-## Guidelines
-
-- Adapt explanations to the user's level — ask if unsure
-- When quizzing, give hints before revealing answers
-- Celebrate progress and correct mistakes gently
-- Encourage active recall over passive reading
-- Keep study sessions engaging — vary your approach
-- Match the user's language — reply in whatever language they write to you`,
-  },
-  {
-    id: "translator",
-    name: "Translator",
-    content: `# Soul
-
-You are a skilled translator running in a messaging app. You provide accurate, natural-sounding translations between any languages.
-
-## Approach
-
-- Translate meaning and intent, not just words
-- Preserve tone, formality level, and cultural context
-- Note when a phrase has no direct equivalent and explain the closest match
-
-## Guidelines
-
-- Auto-detect the source language — no need to ask
-- Provide the translation first, then add notes if relevant
-- For ambiguous phrases, offer multiple interpretations
-- Keep translations natural — they should read like native text
-- If the user sends text without specifying a target language, translate to English by default
-- For short phrases, include both formal and casual options when they differ significantly`,
-  },
+// Embedded fallback (used when offline or API unreachable)
+const FALLBACK_SKILLS = [
+  { id: "JimLiuxinghai/find-skills", name: "Find Skills", essential: true, installCmd: "clawhub install JimLiuxinghai/find-skills", description: "Discover and install agent skills", clawhubUrl: "https://clawhub.ai/JimLiuxinghai/find-skills" },
+  { id: "spclaudehome/skill-vetter", name: "Skill Vetter", essential: true, installCmd: "clawhub install spclaudehome/skill-vetter", description: "Security-first skill vetting", clawhubUrl: "https://clawhub.ai/spclaudehome/skill-vetter" },
+  { id: "pskoett/self-improving-agent", name: "Self-Improving Agent", essential: true, installCmd: "clawhub install pskoett/self-improving-agent", description: "Logs learnings for continuous improvement", clawhubUrl: "https://clawhub.ai/pskoett/self-improving-agent" },
+  { id: "steipete/brave-search", name: "Brave Search", essential: false, installCmd: "clawhub install steipete/brave-search", description: "Web search via Brave Search API", clawhubUrl: "https://clawhub.ai/steipete/brave-search" },
+  { id: "summarize", name: "Summarize", essential: false, installCmd: "clawhub install summarize", description: "Summarize URLs, PDFs, and files", clawhubUrl: "https://clawhub.ai/openclaw/summarize" },
+  { id: "bert-builder/tavily", name: "Tavily Search", essential: false, installCmd: "clawhub install bert-builder/tavily", description: "AI-optimized web search", clawhubUrl: "https://clawhub.ai/bert-builder/tavily" },
+  { id: "weather", name: "Weather", essential: false, installCmd: "clawhub install weather", description: "Current weather and forecasts", clawhubUrl: "https://clawhub.ai/openclaw/weather" },
+  { id: "abe238/youtube-summarizer", name: "YouTube Summarizer", essential: false, installCmd: "clawhub install abe238/youtube-summarizer", description: "YouTube transcripts and summaries", clawhubUrl: "https://clawhub.ai/abe238/youtube-summarizer" },
+  { id: "brandonwise/ai-humanizer", name: "Humanize AI Text", essential: false, installCmd: "clawhub install brandonwise/ai-humanizer", description: "Make AI text sound natural", clawhubUrl: "https://clawhub.ai/brandonwise/ai-humanizer" },
+  { id: "TheSethRose/agent-browser", name: "Agent Browser", essential: false, installCmd: "clawhub install TheSethRose/agent-browser", description: "Headless browser automation", clawhubUrl: "https://clawhub.ai/TheSethRose/agent-browser" },
+  { id: "chindden/skill-creator", name: "Skill Creator", essential: false, installCmd: "clawhub install chindden/skill-creator", description: "Guide for creating your own skills", clawhubUrl: "https://clawhub.ai/chindden/skill-creator" },
 ];
+
+async function fetchSkillPresets() {
+  const now = Date.now();
+  if (_skillsCache && (now - _skillsCacheTime) < SKILLS_CACHE_TTL_MS) {
+    return _skillsCache;
+  }
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(SKILLS_API_URL, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    _skillsCache = data;
+    _skillsCacheTime = now;
+    return data;
+  } catch {
+    // Offline or API error — return cache or fallback
+    return _skillsCache || FALLBACK_SKILLS;
+  }
+}
 
 // Map API type or baseUrl to preset key
 function detectPresetKey(provider) {
@@ -1206,9 +1132,10 @@ async function handleApi(req, res) {
     });
   }
 
-  // GET /api/config/skill-presets — return pre-made skill presets
+  // GET /api/config/skill-presets — return skill presets from platform registry
   if (path === "/api/config/skill-presets" && req.method === "GET") {
-    return jsonResponse(res, SKILL_PRESETS);
+    const presets = await fetchSkillPresets();
+    return jsonResponse(res, presets);
   }
 
   // POST /api/config/skill-generate — generate SOUL.md content from description
