@@ -103,15 +103,30 @@ echo ""
 
 # Stop and unload services
 echo -e "  Stopping services..."
-launchctl unload "$HOME/Library/LaunchAgents/com.openclawup.openclaw.plist" 2>/dev/null || true
-launchctl unload "$HOME/Library/LaunchAgents/com.openclawup.manager.plist" 2>/dev/null || true
-rm -f "$HOME/Library/LaunchAgents/com.openclawup.openclaw.plist"
-rm -f "$HOME/Library/LaunchAgents/com.openclawup.manager.plist"
+if [[ "$(uname)" == "Darwin" ]]; then
+  launchctl unload "$HOME/Library/LaunchAgents/com.openclawup.openclaw.plist" 2>/dev/null || true
+  launchctl unload "$HOME/Library/LaunchAgents/com.openclawup.manager.plist" 2>/dev/null || true
+  rm -f "$HOME/Library/LaunchAgents/com.openclawup.openclaw.plist"
+  rm -f "$HOME/Library/LaunchAgents/com.openclawup.manager.plist"
+else
+  systemctl --user stop openclawup-openclaw.service 2>/dev/null || true
+  systemctl --user stop openclawup-manager.service 2>/dev/null || true
+  systemctl --user disable openclawup-openclaw.service 2>/dev/null || true
+  systemctl --user disable openclawup-manager.service 2>/dev/null || true
+  rm -f "$HOME/.config/systemd/user/openclawup-openclaw.service"
+  rm -f "$HOME/.config/systemd/user/openclawup-manager.service"
+  systemctl --user daemon-reload 2>/dev/null || true
+fi
 echo -e "  ${GREEN}✓${RESET} Services stopped and removed"
 
-# Remove app
-rm -rf "/Applications/OpenClawUP Local.app"
-echo -e "  ${GREEN}✓${RESET} App removed from Applications"
+# Remove app/desktop entry
+if [[ "$(uname)" == "Darwin" ]]; then
+  rm -rf "/Applications/OpenClawUP Local.app"
+  echo -e "  ${GREEN}✓${RESET} App removed from Applications"
+else
+  rm -f "$HOME/.local/share/applications/openclawup-local.desktop"
+  echo -e "  ${GREEN}✓${RESET} Desktop entry removed"
+fi
 
 # Ask about OpenClaw data
 echo ""

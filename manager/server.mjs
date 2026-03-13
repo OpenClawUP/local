@@ -21,6 +21,7 @@ const MANAGER_PLIST_PATH = join(HOME_DIR, "Library/LaunchAgents/com.openclawup.m
 const OPENCLAW_AUTOSTART_REF = IS_WINDOWS ? `Task Scheduler/${WINDOWS_TASKS.openclaw}` : OPENCLAW_PLIST_PATH;
 const MANAGER_AUTOSTART_REF = IS_WINDOWS ? `Task Scheduler/${WINDOWS_TASKS.manager}` : MANAGER_PLIST_PATH;
 const CHANNEL_META_PATH = join(MANAGER_DIR, "channel-meta.json");
+const SKILL_META_PATH = join(MANAGER_DIR, "skill-meta.json");
 const LOG_SOURCES = {
   gateway: join(OPENCLAW_DIR, "logs", "gateway.log"),
   gatewayError: join(OPENCLAW_DIR, "logs", "gateway.err"),
@@ -286,6 +287,100 @@ async function fetchBotName(channelId, token) {
   return null;
 }
 
+function resolveEnvRefs(value) {
+  if (typeof value !== "string") return value;
+  const env = readEnv();
+  return value.replace(/\$\{([^}]+)\}/g, (_, key) => env[key.trim()] || "");
+}
+
+function readSkillMeta() {
+  try {
+    if (existsSync(SKILL_META_PATH)) {
+      return JSON.parse(readFileSync(SKILL_META_PATH, "utf-8"));
+    }
+  } catch {}
+  return null;
+}
+
+function writeSkillMeta(meta) {
+  writeFileSync(SKILL_META_PATH, JSON.stringify(meta, null, 2));
+}
+
+function getFirstProvider(config) {
+  const providers = config?.models?.providers ?? {};
+  const entries = Object.entries(providers);
+  if (entries.length === 0) return null;
+  const [id, provider] = entries[0];
+  const apiKey = resolveEnvRefs(provider.apiKey);
+  const baseUrl = provider.baseUrl;
+  const apiType = provider.api || "openai-completions";
+  const models = provider.models || [];
+  const model = models.find((m) => m.id !== "auto") || models[0];
+  return { id, baseUrl, apiKey, apiType, modelId: model?.id };
+}
+
+async function callAi(prompt) {
+  const config = readConfig();
+  const provider = getFirstProvider(config);
+  if (!provider) throw new Error("No AI provider configured");
+  if (!provider.apiKey) throw new Error("No API key configured");
+
+  const { baseUrl, apiKey, apiType, modelId } = provider;
+
+  if (apiType === "anthropic-messages") {
+    const res = await fetch(`${baseUrl}/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: modelId,
+        max_tokens: 1024,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    return data.content?.[0]?.text?.trim() || null;
+  }
+
+  if (apiType === "google-generative-ai") {
+    const res = await fetch(
+      `${baseUrl}/models/${modelId}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+        }),
+      },
+    );
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+  }
+
+  // Default: openai-completions (works for OpenAI, OpenRouter, DeepSeek, Groq, Mistral, OpenClawUP proxy)
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: modelId,
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 1024,
+      temperature: 0.7,
+    }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+  return data.choices?.[0]?.message?.content?.trim() || null;
+}
+
 function readChannelMeta() {
   try {
     if (existsSync(CHANNEL_META_PATH)) {
@@ -340,6 +435,122 @@ const MODEL_PRESETS = {
   groq:       [{ id: "meta-llama/llama-4-scout-17b-16e-instruct", name: "Llama 4 Scout" }, { id: "meta-llama/llama-4-maverick-17b-128e-instruct", name: "Llama 4 Maverick" }],
   mistral:    [{ id: "mistral-large-latest", name: "Mistral Large" }, { id: "mistral-small-latest", name: "Mistral Small" }],
 };
+
+// Skill presets — pre-made SOUL.md personas users can apply instantly
+const SKILL_PRESETS = [
+  {
+    id: "writing",
+    name: "Writing Assistant",
+    content: `# Soul
+
+You are a skilled writing assistant running in a messaging app. You help users draft, edit, and improve their text.
+
+## Expertise
+
+- Drafting emails, messages, blog posts, and documents
+- Improving clarity, tone, and grammar
+- Adapting writing style to different audiences
+- Summarizing and restructuring text
+
+## Guidelines
+
+- Keep responses concise — suggest edits inline rather than rewriting everything
+- Ask clarifying questions about audience and tone when needed
+- Preserve the user's voice — enhance, don't replace
+- When editing, briefly explain what you changed and why
+- Match the user's language — reply in whatever language they write to you`,
+  },
+  {
+    id: "code",
+    name: "Code Helper",
+    content: `# Soul
+
+You are a knowledgeable coding assistant running in a messaging app. You help with programming questions, code review, and debugging.
+
+## Expertise
+
+- Answering programming questions across popular languages
+- Reviewing code snippets and suggesting improvements
+- Debugging errors and explaining stack traces
+- Explaining programming concepts clearly
+
+## Guidelines
+
+- Keep code snippets short and focused — this is chat, not an IDE
+- Always specify the language when sharing code
+- Explain the "why" behind suggestions, not just the "what"
+- If a question is too broad, ask for specifics
+- Warn about security issues or anti-patterns when you spot them
+- Match the user's language — reply in whatever language they write to you`,
+  },
+  {
+    id: "support",
+    name: "Customer Support",
+    content: `# Soul
+
+You are a friendly and professional customer support agent running in a messaging app. You help customers with questions, issues, and requests.
+
+## Approach
+
+- Be empathetic and patient with every customer
+- Acknowledge the customer's issue before jumping to solutions
+- Provide clear, step-by-step instructions when troubleshooting
+- Escalate gracefully when you can't resolve something
+
+## Guidelines
+
+- Keep responses warm but concise — respect the customer's time
+- Never argue with or blame the customer
+- If you don't have enough context, ask one focused question at a time
+- Offer alternatives when the first solution doesn't work
+- Match the user's language — reply in whatever language they write to you`,
+  },
+  {
+    id: "study",
+    name: "Study Buddy",
+    content: `# Soul
+
+You are an encouraging study companion running in a messaging app. You help users learn, review, and understand topics better.
+
+## Approach
+
+- Explain concepts in simple, clear language
+- Use analogies and examples to make ideas stick
+- Quiz the user to test their understanding
+- Break complex topics into manageable pieces
+
+## Guidelines
+
+- Adapt explanations to the user's level — ask if unsure
+- When quizzing, give hints before revealing answers
+- Celebrate progress and correct mistakes gently
+- Encourage active recall over passive reading
+- Keep study sessions engaging — vary your approach
+- Match the user's language — reply in whatever language they write to you`,
+  },
+  {
+    id: "translator",
+    name: "Translator",
+    content: `# Soul
+
+You are a skilled translator running in a messaging app. You provide accurate, natural-sounding translations between any languages.
+
+## Approach
+
+- Translate meaning and intent, not just words
+- Preserve tone, formality level, and cultural context
+- Note when a phrase has no direct equivalent and explain the closest match
+
+## Guidelines
+
+- Auto-detect the source language — no need to ask
+- Provide the translation first, then add notes if relevant
+- For ambiguous phrases, offer multiple interpretations
+- Keep translations natural — they should read like native text
+- If the user sends text without specifying a target language, translate to English by default
+- For short phrases, include both formal and casual options when they differ significantly`,
+  },
+];
 
 // Map API type or baseUrl to preset key
 function detectPresetKey(provider) {
@@ -893,6 +1104,110 @@ function handleApi(req, res) {
         const { enabled } = JSON.parse(body);
         setOpenClawAutoStart(enabled);
         return jsonResponse(res, { ok: true });
+      } catch (e) {
+        return jsonResponse(res, { error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // GET /api/config/skill — read current SOUL.md + skill metadata
+  if (path === "/api/config/skill" && req.method === "GET") {
+    const config = readConfig();
+    const workspace = config?.agents?.defaults?.workspace || join(OPENCLAW_DIR, "workspace");
+    const soulPath = join(workspace, "SOUL.md");
+    const meta = readSkillMeta();
+    let soulContent = "";
+    try {
+      if (existsSync(soulPath)) {
+        soulContent = readFileSync(soulPath, "utf-8");
+      }
+    } catch {}
+    return jsonResponse(res, {
+      description: meta?.description || "",
+      systemPrompt: soulContent,
+      soulPath,
+      generatedAt: meta?.generatedAt || null,
+    });
+  }
+
+  // GET /api/config/skill-presets — return pre-made skill presets
+  if (path === "/api/config/skill-presets" && req.method === "GET") {
+    return jsonResponse(res, SKILL_PRESETS);
+  }
+
+  // POST /api/config/skill-generate — generate SOUL.md content from description
+  if (path === "/api/config/skill-generate" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", async () => {
+      try {
+        const { description } = JSON.parse(body);
+        if (!description?.trim()) {
+          return jsonResponse(res, { error: "Description is required" }, 400);
+        }
+
+        const metaPrompt = `You are a prompt engineer. Based on the user's description below, create the content for a SOUL.md file that defines an AI chatbot's personality and behavior. This file is injected into the bot's system prompt on every conversation turn.
+
+The bot runs in messaging apps (Telegram, Discord, WhatsApp, etc.) via OpenClaw.
+
+Requirements:
+- Define the bot's role, expertise, and personality clearly
+- Set an appropriate tone for the use case (professional, friendly, casual, etc.)
+- Specify what the bot should and shouldn't do
+- Include practical response guidelines suited for chat (keep messages concise, use formatting sparingly, etc.)
+- Write in markdown format with clear sections
+- Keep it focused and practical (200-400 words)
+
+User's description of what they want their bot to do:
+${description.trim()}
+
+Output ONLY the SOUL.md content. No explanations, no outer code fences wrapping the whole thing.`;
+
+        const generated = await callAi(metaPrompt);
+        if (!generated) {
+          return jsonResponse(res, { error: "AI returned empty response" }, 500);
+        }
+
+        return jsonResponse(res, { systemPrompt: generated });
+      } catch (e) {
+        return jsonResponse(res, { error: e.message || "Failed to generate" }, 500);
+      }
+    });
+    return;
+  }
+
+  // PUT /api/config/skill — write SOUL.md to workspace + save metadata
+  if (path === "/api/config/skill" && req.method === "PUT") {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", () => {
+      try {
+        const { systemPrompt, description } = JSON.parse(body);
+        if (typeof systemPrompt !== "string") {
+          return jsonResponse(res, { error: "systemPrompt is required" }, 400);
+        }
+
+        const config = readConfig();
+        const workspace = config?.agents?.defaults?.workspace || join(OPENCLAW_DIR, "workspace");
+        const soulPath = join(workspace, "SOUL.md");
+
+        // Ensure workspace directory exists
+        mkdirSync(workspace, { recursive: true });
+
+        if (systemPrompt) {
+          writeFileSync(soulPath, systemPrompt, "utf-8");
+          writeSkillMeta({
+            description: description || "",
+            generatedAt: new Date().toISOString(),
+          });
+        } else {
+          // Clear: remove SOUL.md and metadata
+          if (existsSync(soulPath)) rmSync(soulPath, { force: true });
+          if (existsSync(SKILL_META_PATH)) rmSync(SKILL_META_PATH, { force: true });
+        }
+
+        return jsonResponse(res, { ok: true, soulPath });
       } catch (e) {
         return jsonResponse(res, { error: e.message }, 400);
       }

@@ -9,7 +9,7 @@ One-click install [OpenClaw](https://github.com/openclaw/openclaw) AI assistant 
 
 ### Option 1: Terminal (copy & paste)
 
-macOS:
+macOS / Linux:
 
 ```bash
 curl -fsSL https://openclawup.com/get | bash
@@ -35,8 +35,19 @@ The installer will:
 2. **Install OpenClaw** — Latest version via npm
 3. **Configure your channel** — Telegram, Discord, WhatsApp, Slack, Signal, and 15+ more
 4. **Set up AI** — Bring your own OpenAI-compatible API key, or use OpenClawUP AI proxy (pay-as-you-go, auto-routing)
-5. **Start as background service** — Runs automatically on sign-in, survives terminal close
-6. **Install management app** — Open `http://localhost:8080` or use the platform shortcut to manage everything
+5. **Create a default Skill** — Your bot starts with a helpful assistant persona, customizable from the management page
+6. **Start as background service** — Runs automatically on sign-in, survives terminal close
+7. **Install management app** — Open `http://localhost:8080` or use the platform shortcut to manage everything
+
+## Skills
+
+Your bot's personality and behavior are defined by a **Skill** — a `SOUL.md` file in the OpenClaw workspace. The Skill Builder in the management page lets you:
+
+- **Generate with AI** — Describe what you want your bot to do, and AI generates the perfect persona
+- **Use a preset** — One-click presets for common use cases (Writing Assistant, Code Helper, Customer Support, Study Buddy, Translator)
+- **Edit manually** — Full control over the `SOUL.md` content
+
+Changes take effect on the next message — no restart needed.
 
 ## Management
 
@@ -47,6 +58,7 @@ After installation, manage your bot through the web interface:
 
 From the management page you can:
 
+- Customize your bot's Skill (personality and behavior)
 - Start / Stop / Restart the bot
 - Add or remove chat channels
 - Switch AI models
@@ -69,7 +81,7 @@ You can also enable additional channels from the local manager, including IRC, M
 
 ## Uninstall
 
-macOS:
+macOS / Linux:
 
 ```bash
 curl -fsSL https://openclawup.com/uninstall.sh | bash
@@ -86,6 +98,7 @@ Windows download: [`uninstall.bat`](https://github.com/OpenClawUP/local/releases
 ## Requirements
 
 - macOS 12+ (Intel or Apple Silicon)
+- Linux with systemd (Ubuntu 20.04+, Debian 11+, Fedora 36+, etc.)
 - Windows 10/11 with PowerShell 5.1+
 - Internet connection
 
@@ -99,6 +112,7 @@ Windows download: [`uninstall.bat`](https://github.com/OpenClawUP/local/releases
 | Setup | 2 minutes | 60 seconds |
 | Channels | All supported | All supported |
 | AI Models | All major models | All major models |
+| Skills | AI-generated + presets | AI-generated + presets |
 | Document search | — | Built-in QMD engine |
 | Management | Local web UI | Cloud dashboard |
 | Updates | Manual | Automatic |

@@ -11,10 +11,12 @@ OPENCLAW_DIR="$HOME/.openclaw"
 MANAGER_DIR="$HOME/.openclawup-local"
 MANAGER_PORT=8080
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
+SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
 APP_DIR="/Applications/OpenClawUP Local.app"
 OPENCLAWUP_API="https://openclawup.com"
 NPM_GLOBAL_PREFIX=""
 NPM_GLOBAL_BIN=""
+OS_TYPE=""
 
 # ── Colors ──────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -125,21 +127,33 @@ banner() {
   echo "  \___/| .__/ \___|_| |_|\____|_|\__,_| \_/\_/  \___/|_|    "
   echo "       |_|                                          Local    "
   echo -e "${RESET}"
-  echo -e "  ${DIM}One-click install OpenClaw AI assistant on your Mac${RESET}"
+  echo -e "  ${DIM}One-click install OpenClaw AI assistant on your computer${RESET}"
   echo -e "  ${DIM}Version $VERSION · https://openclawup.com${RESET}"
   echo ""
 }
 
 # ── 1. Check environment ────────────────────────────────────
 check_os() {
-  if [[ "$(uname)" != "Darwin" ]]; then
-    fail "This installer is for macOS only. For Linux, see docs."
-  fi
+  local kernel
+  kernel=$(uname)
   local arch
   arch=$(uname -m)
-  local macos_ver
-  macos_ver=$(sw_vers -productVersion)
-  success "macOS $macos_ver ($arch)"
+
+  if [[ "$kernel" == "Darwin" ]]; then
+    OS_TYPE="macos"
+    local macos_ver
+    macos_ver=$(sw_vers -productVersion)
+    success "macOS $macos_ver ($arch)"
+  elif [[ "$kernel" == "Linux" ]]; then
+    OS_TYPE="linux"
+    local distro="Linux"
+    if [[ -f /etc/os-release ]]; then
+      distro=$(. /etc/os-release && echo "${PRETTY_NAME:-Linux}")
+    fi
+    success "$distro ($arch)"
+  else
+    fail "Unsupported OS: $kernel. This installer supports macOS and Linux."
+  fi
 }
 
 check_node() {
@@ -164,6 +178,29 @@ check_node() {
 install_node() {
   info "Installing Node.js 22..."
 
+  if [[ "$OS_TYPE" == "macos" ]]; then
+    install_node_macos
+  elif [[ "$OS_TYPE" == "linux" ]]; then
+    install_node_linux
+  fi
+
+  # Verify
+  if command -v node &>/dev/null; then
+    local ver
+    ver=$(node -v | sed 's/v//')
+    local major
+    major=$(echo "$ver" | cut -d. -f1)
+    if [[ "$major" -ge 22 ]]; then
+      success "Node.js v$ver installed"
+    else
+      fail "Node.js v$ver installed but v22+ is required. Please install manually: https://nodejs.org"
+    fi
+  else
+    fail "Failed to install Node.js. Please install manually: https://nodejs.org"
+  fi
+}
+
+install_node_macos() {
   if command -v brew &>/dev/null; then
     info "Using Homebrew..."
     brew install node@22 2>/dev/null || brew upgrade node@22 2>/dev/null || true
@@ -185,14 +222,52 @@ install_node() {
     sudo installer -pkg "$tmp_pkg" -target / 2>/dev/null
     rm -f "$tmp_pkg"
   fi
+}
 
-  # Verify
-  if command -v node &>/dev/null; then
-    local ver
-    ver=$(node -v | sed 's/v//')
-    success "Node.js v$ver installed"
+install_node_linux() {
+  # Try package manager first
+  if command -v apt-get &>/dev/null; then
+    info "Using apt-get..."
+    sudo apt-get update -y >/dev/null 2>&1
+    sudo apt-get install -y nodejs npm >/dev/null 2>&1 || true
+    # Check if the installed version is new enough
+    if command -v node &>/dev/null; then
+      local ver
+      ver=$(node -v | sed 's/v//')
+      local major
+      major=$(echo "$ver" | cut -d. -f1)
+      if [[ "$major" -ge 22 ]]; then
+        return 0
+      fi
+      info "System Node.js is v$ver, installing v22 from NodeSource..."
+    fi
+    # Install from NodeSource for v22
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - >/dev/null 2>&1
+    sudo apt-get install -y nodejs >/dev/null 2>&1
+  elif command -v dnf &>/dev/null; then
+    info "Using dnf..."
+    curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo -E bash - >/dev/null 2>&1
+    sudo dnf install -y nodejs >/dev/null 2>&1
+  elif command -v yum &>/dev/null; then
+    info "Using yum..."
+    curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo -E bash - >/dev/null 2>&1
+    sudo yum install -y nodejs >/dev/null 2>&1
   else
-    fail "Failed to install Node.js. Please install manually: https://nodejs.org"
+    # Fallback: download official binary tarball
+    info "Downloading official binary..."
+    local arch
+    arch=$(uname -m)
+    local tar_arch="x64"
+    if [[ "$arch" == "aarch64" || "$arch" == "arm64" ]]; then
+      tar_arch="arm64"
+    elif [[ "$arch" == "armv7l" ]]; then
+      tar_arch="armv7l"
+    fi
+    local tar_url="https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-${tar_arch}.tar.xz"
+    local tmp_tar="/tmp/nodejs-22.tar.xz"
+    curl -fsSL "$tar_url" -o "$tmp_tar"
+    sudo tar -xJf "$tmp_tar" -C /usr/local --strip-components=1
+    rm -f "$tmp_tar"
   fi
 }
 
@@ -390,7 +465,11 @@ setup_proxy_ai() {
   PAIRING_TOKEN=$(uuidgen | tr '[:upper:]' '[:lower:]')
 
   # Open browser for registration + payment
-  open "${OPENCLAWUP_API}/local/setup?pairingToken=${PAIRING_TOKEN}" 2>/dev/null || true
+  if [[ "$OS_TYPE" == "linux" ]]; then
+    xdg-open "${OPENCLAWUP_API}/local/setup?pairingToken=${PAIRING_TOKEN}" 2>/dev/null || true
+  else
+    open "${OPENCLAWUP_API}/local/setup?pairingToken=${PAIRING_TOKEN}" 2>/dev/null || true
+  fi
 
   echo -e "  ${BOLD}Complete these steps in your browser:${RESET}"
   echo -e "  ${DIM}1. Sign in with Google${RESET}"
@@ -592,6 +671,22 @@ JSONEOF
 
   echo -e "$env_content" > "$OPENCLAW_DIR/.env"
 
+  # Create workspace with default SOUL.md
+  mkdir -p "$OPENCLAW_DIR/workspace"
+  cat > "$OPENCLAW_DIR/workspace/SOUL.md" << 'SOULEOF'
+# Soul
+
+You are a helpful, friendly AI assistant running in a messaging app. You aim to be concise and practical in your responses.
+
+## Guidelines
+
+- Keep messages short and conversational — this is chat, not an essay
+- Use markdown formatting sparingly (most messaging apps have limited support)
+- Be direct and helpful — get to the point quickly
+- If you don't know something, say so honestly
+- Match the user's language — reply in whatever language they write to you
+SOULEOF
+
   success "Configuration generated at $OPENCLAW_DIR/"
 }
 
@@ -619,20 +714,32 @@ install_manager() {
   success "Management console installed"
 }
 
-# ── 6. Register launchd services ────────────────────────────
+# ── 6. Register services ─────────────────────────────────────
 
 register_services() {
-  mkdir -p "$LAUNCH_AGENTS_DIR"
-
   local node_path
   node_path=$(which node)
   local openclaw_path
   openclaw_path=$(which openclaw)
-  local launch_path
-  launch_path="/usr/local/bin:/usr/bin:/bin:$(dirname "$node_path")"
+  local svc_path
+  svc_path="/usr/local/bin:/usr/bin:/bin:$(dirname "$node_path")"
   if [[ -n "$NPM_GLOBAL_BIN" ]]; then
-    launch_path="$NPM_GLOBAL_BIN:$launch_path"
+    svc_path="$NPM_GLOBAL_BIN:$svc_path"
   fi
+
+  if [[ "$OS_TYPE" == "linux" ]]; then
+    register_services_linux "$node_path" "$openclaw_path" "$svc_path"
+  else
+    register_services_macos "$node_path" "$openclaw_path" "$svc_path"
+  fi
+}
+
+register_services_macos() {
+  local node_path="$1"
+  local openclaw_path="$2"
+  local launch_path="$3"
+
+  mkdir -p "$LAUNCH_AGENTS_DIR"
 
   # OpenClaw service
   cat > "$LAUNCH_AGENTS_DIR/com.openclawup.openclaw.plist" << PLISTEOF
@@ -711,9 +818,76 @@ PLISTEOF
   success "Launch services registered (auto-start on login)"
 }
 
-# ── 7. Create macOS app ─────────────────────────────────────
+register_services_linux() {
+  local node_path="$1"
+  local openclaw_path="$2"
+  local svc_path="$3"
+
+  mkdir -p "$SYSTEMD_USER_DIR"
+  mkdir -p "$OPENCLAW_DIR/logs"
+
+  # OpenClaw systemd user service
+  cat > "$SYSTEMD_USER_DIR/openclawup-openclaw.service" << SVCEOF
+[Unit]
+Description=OpenClawUP OpenClaw Gateway
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=$openclaw_path gateway --port 18789
+WorkingDirectory=$OPENCLAW_DIR
+Environment=PATH=$svc_path
+Environment=HOME=$HOME
+Restart=always
+RestartSec=5
+StandardOutput=append:$OPENCLAW_DIR/logs/gateway.log
+StandardError=append:$OPENCLAW_DIR/logs/gateway.err
+
+[Install]
+WantedBy=default.target
+SVCEOF
+
+  # Manager systemd user service
+  cat > "$SYSTEMD_USER_DIR/openclawup-manager.service" << SVCEOF
+[Unit]
+Description=OpenClawUP Management Console
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=$node_path $MANAGER_DIR/server.mjs
+WorkingDirectory=$MANAGER_DIR
+Environment=PATH=$svc_path
+Environment=PORT=$MANAGER_PORT
+Environment=OPENCLAW_DIR=$OPENCLAW_DIR
+Environment=HOME=$HOME
+Restart=always
+RestartSec=5
+StandardOutput=append:$MANAGER_DIR/manager.log
+StandardError=append:$MANAGER_DIR/manager.err
+
+[Install]
+WantedBy=default.target
+SVCEOF
+
+  systemctl --user daemon-reload
+  systemctl --user enable openclawup-openclaw.service 2>/dev/null || true
+  systemctl --user enable openclawup-manager.service 2>/dev/null || true
+
+  success "Systemd user services registered (auto-start on login)"
+}
+
+# ── 7. Create app shortcut ────────────────────────────────────
 
 create_app() {
+  if [[ "$OS_TYPE" == "linux" ]]; then
+    create_app_linux
+  else
+    create_app_macos
+  fi
+}
+
+create_app_macos() {
   local app_contents="$APP_DIR/Contents"
   local app_macos="$app_contents/MacOS"
   local app_resources="$app_contents/Resources"
@@ -765,14 +939,49 @@ INFOPLISTEOF
   success "App installed at /Applications/OpenClawUP Local.app"
 }
 
+create_app_linux() {
+  local desktop_dir="$HOME/.local/share/applications"
+  mkdir -p "$desktop_dir"
+
+  cat > "$desktop_dir/openclawup-local.desktop" << DESKTOPEOF
+[Desktop Entry]
+Type=Application
+Name=OpenClawUP Local
+Comment=OpenClawUP Local Management Console
+Exec=xdg-open http://localhost:${MANAGER_PORT}
+Terminal=false
+Categories=Utility;Network;
+StartupNotify=false
+DESKTOPEOF
+
+  # Copy icon if available (only when running from local clone)
+  local script_dir="${BASH_SOURCE[0]:-}"
+  if [[ -n "$script_dir" ]]; then
+    script_dir="$(cd "$(dirname "$script_dir")" && pwd)"
+    if [[ -f "$script_dir/assets/icon.png" ]]; then
+      local icon_dir="$HOME/.local/share/icons"
+      mkdir -p "$icon_dir"
+      cp "$script_dir/assets/icon.png" "$icon_dir/openclawup-local.png"
+      # Add icon reference to desktop entry
+      sed -i "s|^Categories=|Icon=$icon_dir/openclawup-local.png\nCategories=|" "$desktop_dir/openclawup-local.desktop"
+    fi
+  fi
+
+  success "Desktop entry installed at $desktop_dir/openclawup-local.desktop"
+}
+
 # ── 8. Start services ──────────────────────────────────────
 
 start_services() {
   mkdir -p "$OPENCLAW_DIR/logs"
 
-  # Load services
-  launchctl load "$LAUNCH_AGENTS_DIR/com.openclawup.manager.plist" 2>/dev/null || true
-  launchctl load "$LAUNCH_AGENTS_DIR/com.openclawup.openclaw.plist" 2>/dev/null || true
+  if [[ "$OS_TYPE" == "linux" ]]; then
+    systemctl --user start openclawup-manager.service 2>/dev/null || true
+    systemctl --user start openclawup-openclaw.service 2>/dev/null || true
+  else
+    launchctl load "$LAUNCH_AGENTS_DIR/com.openclawup.manager.plist" 2>/dev/null || true
+    launchctl load "$LAUNCH_AGENTS_DIR/com.openclawup.openclaw.plist" 2>/dev/null || true
+  fi
 
   # Wait a moment for services to start
   sleep 2
@@ -803,7 +1012,12 @@ complete() {
       ;;
   esac
 
-  echo -e "  ${CYAN}→${RESET} Manage: open ${BOLD}OpenClawUP Local${RESET} from Launchpad"
+  echo -e "  ${CYAN}→${RESET} Customize: set up a Skill in the management page to personalize your bot"
+  if [[ "$OS_TYPE" == "linux" ]]; then
+    echo -e "  ${CYAN}→${RESET} Manage: open ${BOLD}OpenClawUP Local${RESET} from your application menu"
+  else
+    echo -e "  ${CYAN}→${RESET} Manage: open ${BOLD}OpenClawUP Local${RESET} from Launchpad"
+  fi
   echo -e "  ${CYAN}→${RESET} Or visit: ${BOLD}http://localhost:${MANAGER_PORT}${RESET}"
   echo ""
   echo -e "  ${DIM}OpenClaw runs in the background and starts automatically on login.${RESET}"
@@ -812,7 +1026,11 @@ complete() {
 
   # Open manager page
   sleep 1
-  open "http://localhost:${MANAGER_PORT}" 2>/dev/null || true
+  if [[ "$OS_TYPE" == "linux" ]]; then
+    xdg-open "http://localhost:${MANAGER_PORT}" 2>/dev/null || true
+  else
+    open "http://localhost:${MANAGER_PORT}" 2>/dev/null || true
+  fi
 }
 
 # ── Main ────────────────────────────────────────────────────

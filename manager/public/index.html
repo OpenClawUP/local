@@ -541,6 +541,100 @@
       }
     }
 
+    /* Skill Builder */
+    textarea {
+      width: 100%;
+      min-height: 80px;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      background: rgba(255,255,255,0.05);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      resize: vertical;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: var(--green);
+    }
+
+    textarea::placeholder {
+      color: var(--text-muted);
+    }
+
+    .skill-prompt-preview {
+      padding: 0.875rem;
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      background: rgba(255,255,255,0.02);
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      color: #cbd5e1;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .skill-generating {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    .skill-generating .spinner {
+      margin-bottom: 0;
+      width: 18px;
+      height: 18px;
+    }
+
+    .preset-section {
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--card-border);
+    }
+
+    .preset-label {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .preset-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.375rem;
+    }
+
+    .btn-preset {
+      padding: 0.3rem 0.625rem;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      background: rgba(255,255,255,0.04);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-preset:hover {
+      background: rgba(59,130,246,0.1);
+      border-color: rgba(59,130,246,0.25);
+      color: var(--blue);
+    }
+
+    .btn-preset[disabled] {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
@@ -610,6 +704,9 @@
       logLines: 120,
       logs: null,
       diagnostics: null,
+      skill: null,
+      skillGenerating: false,
+      skillDraft: null,
     };
 
     const LOG_SOURCES = {
@@ -628,10 +725,11 @@
     }
 
     async function refresh() {
-      const [status, logs, diagnostics] = await Promise.all([
+      const [status, logs, diagnostics, skill] = await Promise.all([
         api("/api/status"),
         api(`/api/logs?source=${encodeURIComponent(state.selectedLogSource)}&lines=${state.logLines}`),
         api("/api/diagnostics"),
+        api("/api/config/skill"),
       ]);
       state = {
         ...status,
@@ -639,6 +737,9 @@
         logLines: state.logLines,
         logs,
         diagnostics,
+        skill,
+        skillGenerating: state.skillGenerating,
+        skillDraft: state.skillDraft,
       };
       render();
     }
@@ -768,6 +869,79 @@
       }
     }
 
+    async function generateSkill() {
+      const desc = document.getElementById("skill-description")?.value?.trim();
+      if (!desc) return alert("Please describe what you want your bot to do.");
+      state.skillGenerating = true;
+      state.skillDraft = null;
+      render();
+      try {
+        const result = await api("/api/config/skill-generate", {
+          method: "POST",
+          body: JSON.stringify({ description: desc }),
+        });
+        if (result.error) {
+          alert("Generation failed: " + result.error);
+          state.skillGenerating = false;
+          render();
+          return;
+        }
+        state.skillDraft = { description: desc, systemPrompt: result.systemPrompt };
+        state.skillGenerating = false;
+        render();
+      } catch (e) {
+        alert("Generation failed: " + (e.message || "Unknown error"));
+        state.skillGenerating = false;
+        render();
+      }
+    }
+
+    async function applySkill() {
+      const promptEl = document.getElementById("skill-draft-prompt");
+      const systemPrompt = promptEl?.value?.trim();
+      if (!systemPrompt) return alert("SOUL.md content cannot be empty.");
+      const description = state.skillDraft?.description || "";
+      const res = await api("/api/config/skill", {
+        method: "PUT",
+        body: JSON.stringify({ systemPrompt, description }),
+      });
+      if (res?.error) return alert("Failed to apply: " + res.error);
+      state.skillDraft = null;
+      await refresh();
+    }
+
+    async function clearSkill() {
+      if (!confirm("Remove SOUL.md? Your bot will return to default behavior.")) return;
+      await api("/api/config/skill", {
+        method: "PUT",
+        body: JSON.stringify({ systemPrompt: "", description: "" }),
+      });
+      state.skillDraft = null;
+      await refresh();
+    }
+
+    function discardDraft() {
+      state.skillDraft = null;
+      render();
+    }
+
+    async function applyPreset(id) {
+      try {
+        const presets = await api("/api/config/skill-presets");
+        const preset = presets.find(p => p.id === id);
+        if (!preset) return alert("Preset not found.");
+        const res = await api("/api/config/skill", {
+          method: "PUT",
+          body: JSON.stringify({ systemPrompt: preset.content, description: preset.name }),
+        });
+        if (res?.error) return alert("Failed to apply preset: " + res.error);
+        state.skillDraft = null;
+        await refresh();
+      } catch (e) {
+        alert("Failed to apply preset: " + (e.message || "Unknown error"));
+      }
+    }
+
     function setLogSource(source) {
       state.selectedLogSource = source;
       refreshLogs();
@@ -871,6 +1045,63 @@
               : `<button class="btn btn-green" onclick="doAction('start')">Start</button>`
             }
           </div>
+        </div>
+
+        <!-- Skill Builder -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Skill</div>
+            ${state.skill?.systemPrompt ? `<button class="btn btn-sm btn-red" onclick="clearSkill()">Clear</button>` : ''}
+          </div>
+          ${state.skill?.systemPrompt && !state.skillDraft ? `
+            <div style="margin-bottom:0.75rem">
+              ${state.skill.description ? `<p style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:0.5rem">
+                <strong style="color:var(--text)">Description:</strong> ${escapeHtml(state.skill.description)}
+              </p>` : ''}
+              <div class="skill-prompt-preview">${escapeHtml(state.skill.systemPrompt)}</div>
+              <p style="margin-top:0.5rem;font-size:0.75rem;color:var(--text-muted)">
+                Saved to <code>${escapeHtml(state.skill.soulPath || 'SOUL.md')}</code> — changes apply on next message.
+              </p>
+            </div>
+          ` : ''}
+          ${state.skillGenerating ? `
+            <div class="skill-generating">
+              <div class="spinner"></div>
+              Generating skill with AI...
+            </div>
+          ` : state.skillDraft ? `
+            <div>
+              <p style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:0.5rem">
+                Review and edit, then apply. This will be saved as <code>SOUL.md</code> in your OpenClaw workspace.
+              </p>
+              <textarea id="skill-draft-prompt" rows="8" style="min-height:140px">${escapeHtml(state.skillDraft.systemPrompt)}</textarea>
+              <div class="btn-row">
+                <button class="btn btn-green" onclick="applySkill()">Apply</button>
+                <button class="btn" onclick="generateSkill()">Regenerate</button>
+                <button class="btn" onclick="discardDraft()">Discard</button>
+              </div>
+            </div>
+          ` : `
+            <p style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:0.75rem">
+              ${state.skill?.systemPrompt
+                ? 'Generate a new skill to replace the current one:'
+                : 'Describe what you want your bot to do, and AI will generate a SOUL.md that defines its personality and behavior.'}
+            </p>
+            <textarea id="skill-description" rows="3" placeholder="e.g., I run a small bakery. I want my bot to answer questions about our menu, opening hours, and help customers place simple orders...">${escapeHtml(state.skill?.description || '')}</textarea>
+            <div class="btn-row">
+              <button class="btn btn-green" onclick="generateSkill()">Generate with AI</button>
+            </div>
+            <div class="preset-section">
+              <p class="preset-label">Or try a preset:</p>
+              <div class="preset-row">
+                <button class="btn-preset" onclick="applyPreset('writing')">Writing</button>
+                <button class="btn-preset" onclick="applyPreset('code')">Code</button>
+                <button class="btn-preset" onclick="applyPreset('support')">Support</button>
+                <button class="btn-preset" onclick="applyPreset('study')">Study</button>
+                <button class="btn-preset" onclick="applyPreset('translator')">Translator</button>
+              </div>
+            </div>
+          `}
         </div>
 
         <!-- Channels -->
