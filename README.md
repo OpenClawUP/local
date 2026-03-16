@@ -18,7 +18,7 @@ curl -fsSL https://openclawup.com/get | bash
 Windows PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/OpenClawUP/local/main/install.ps1 | iex"
+powershell -ExecutionPolicy Bypass -Command "irm https://openclawup.com/get.ps1 | iex"
 ```
 
 ### Option 2: Download & double-click
@@ -31,13 +31,14 @@ Windows: download [`install.bat`](https://github.com/OpenClawUP/local/releases/l
 
 The installer will:
 
-1. **Check & install dependencies** — Node.js 22+ (auto-detected, installed if missing)
-2. **Install OpenClaw** — Latest version via npm
-3. **Configure your channel** — Telegram, Discord, WhatsApp, Slack, Signal, and 15+ more
-4. **Set up AI** — Bring your own OpenAI-compatible API key, or use OpenClawUP AI proxy (pay-as-you-go, auto-routing)
-5. **Create a default Skill** — Your bot starts with a helpful assistant persona, customizable from the management page
-6. **Start as background service** — Runs automatically on sign-in, survives terminal close
-7. **Install management app** — Open `http://localhost:8080` or use the platform shortcut to manage everything
+1. **Pre-flight checks** — Verifies network connectivity, checks port availability (18789/18790/8080), auto-installs missing tools (tar, xz, npm) on Linux
+2. **Check & install dependencies** — Node.js 22+ (auto-detected, installed if missing via Homebrew/apt/dnf/binary)
+3. **Install OpenClaw** — Latest version via npm (auto-retries once on failure)
+4. **Configure your channel** — Telegram, Discord, WhatsApp, Slack, Signal, and 15+ more
+5. **Set up AI** — Bring your own OpenAI-compatible API key, or use OpenClawUP AI proxy (pay-as-you-go, auto-routing)
+6. **Create a default Skill** — Your bot starts with a helpful assistant persona, customizable from the management page
+7. **Start as background service** — Runs automatically on sign-in, survives terminal close
+8. **Install management app** — Open `http://localhost:8080` or use the platform shortcut to manage everything
 
 ## Skills
 
@@ -133,7 +134,7 @@ The update check caches the GitHub API response for 1 hour to avoid rate limits.
 macOS / Linux:
 
 ```bash
-curl -fsSL https://openclawup.com/uninstall.sh | bash
+curl -fsSL https://openclawup.com/unget | bash
 ```
 
 Windows PowerShell:
