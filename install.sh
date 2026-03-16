@@ -6,6 +6,16 @@ set -euo pipefail
 # https://openclawup.com/install
 # ─────────────────────────────────────────────────────────────
 
+# ── Dependency helpers ──────────────────────────────────────
+
+# uuidgen fallback for minimal Linux installs
+if ! command -v uuidgen &>/dev/null; then
+  uuidgen() { cat /proc/sys/kernel/random/uuid 2>/dev/null || python3 -c "import uuid; print(uuid.uuid4())" 2>/dev/null || openssl rand -hex 16; }
+fi
+
+# Retry wrapper: _retry <cmd...> — retries once after 3s on failure
+_retry() { "$@" && return 0; echo -e "\033[1;33m  ├── ⚠\033[0m Retrying..."; sleep 3; "$@"; }
+
 VERSION="1.0.0"
 OPENCLAW_DIR="$HOME/.openclaw"
 MANAGER_DIR="$HOME/.openclawup-local"
@@ -34,6 +44,45 @@ success() { echo -e "${GREEN}  ├── ✓${RESET} $1"; }
 warn()    { echo -e "${YELLOW}  ├── ⚠${RESET} $1"; }
 fail()    { echo -e "${RED}  └── ✗ $1${RESET}"; exit 1; }
 step()    { echo -e "\n${BOLD}${CYAN}  [$1]${RESET} ${BOLD}$2${RESET}"; }
+
+# ── Pre-flight checks ───────────────────────────────────────
+
+_preflight_network() {
+  if ! curl -fsS --max-time 5 -o /dev/null "https://registry.npmjs.org" 2>/dev/null; then
+    fail "No internet connection. Please check your network and try again."
+  fi
+}
+
+_preflight_ports() {
+  for p in 18789 18790 8080; do
+    if (command -v lsof &>/dev/null && lsof -iTCP:"$p" -sTCP:LISTEN &>/dev/null 2>&1) || \
+       (command -v ss &>/dev/null && ss -tlnp 2>/dev/null | grep -q ":$p "); then
+      warn "Port $p is in use. OpenClaw may not start correctly."
+    fi
+  done
+}
+
+_preflight_tools() {
+  [[ "$(uname)" != "Linux" ]] && return
+  local pkgs=()
+  command -v tar &>/dev/null || pkgs+=(tar)
+  (command -v xz &>/dev/null || command -v unxz &>/dev/null) || pkgs+=(xz-utils)
+  # Some distros split nodejs and npm into separate packages
+  if command -v node &>/dev/null && ! command -v npm &>/dev/null; then
+    pkgs+=(npm)
+  fi
+  [[ ${#pkgs[@]} -eq 0 ]] && return
+  info "Installing missing tools: ${pkgs[*]}..."
+  if command -v apt-get &>/dev/null; then
+    sudo apt-get update -y >/dev/null 2>&1 && sudo apt-get install -y "${pkgs[@]}" >/dev/null 2>&1 || true
+  elif command -v dnf &>/dev/null; then
+    sudo dnf install -y "${pkgs[@]/xz-utils/xz}" >/dev/null 2>&1 || true
+  elif command -v yum &>/dev/null; then
+    sudo yum install -y "${pkgs[@]/xz-utils/xz}" >/dev/null 2>&1 || true
+  fi
+}
+
+# ── Path helpers ────────────────────────────────────────────
 
 path_contains() {
   local dir="$1"
@@ -287,7 +336,7 @@ install_openclaw() {
   info "Installing OpenClaw..."
   prepare_npm_install_prefix
 
-  if ! npm install -g openclaw@latest; then
+  if ! _retry npm install -g openclaw@latest; then
     fail "Failed to install OpenClaw with npm. Prefix: ${NPM_GLOBAL_PREFIX:-unknown}"
   fi
 
@@ -1052,6 +1101,9 @@ main() {
   banner
 
   step "1/6" "Checking environment"
+  _preflight_network
+  _preflight_tools
+  _preflight_ports
   check_os
   if ! check_node; then
     install_node
