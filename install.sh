@@ -719,6 +719,7 @@ JSONEOF
   fi
 
   echo -e "$env_content" > "$OPENCLAW_DIR/.env"
+  chmod 600 "$OPENCLAW_DIR/.env"
 
   # Create workspace with default SOUL.md
   mkdir -p "$OPENCLAW_DIR/workspace"

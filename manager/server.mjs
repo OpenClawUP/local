@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { readFileSync, writeFileSync, existsSync, statSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, statSync, mkdtempSync, mkdirSync, rmSync, chmodSync, copyFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync, execSync } from "node:child_process";
@@ -32,6 +32,26 @@ const LOG_SOURCES = {
   managerError: join(MANAGER_DIR, "manager.err"),
 };
 
+// ── Validation ─────────────────────────────────────────────
+const VALID_CHANNEL_IDS = new Set([
+  "telegram", "discord", "slack", "whatsapp", "signal",
+  "googlechat", "teams", "matrix", "feishu", "line",
+  "mattermost", "irc", "nostr", "webchat", "zalo",
+]);
+const MAX_MODEL_ID_LEN = 128;
+const MAX_TOKEN_LEN = 512;
+const MAX_BODY_BYTES = 64 * 1024; // 64 KB
+
+function isValidModelId(id) {
+  if (!id || typeof id !== "string") return false;
+  if (id.length > MAX_MODEL_ID_LEN) return false;
+  return /^[a-zA-Z0-9._\-/:]+$/.test(id);
+}
+
+function isValidChannelId(id) {
+  return typeof id === "string" && VALID_CHANNEL_IDS.has(id);
+}
+
 // ── Auth ────────────────────────────────────────────────────
 
 function getOrCreateAuthToken() {
@@ -43,6 +63,7 @@ function getOrCreateAuthToken() {
   } catch {}
   const token = randomBytes(16).toString("hex");
   writeFileSync(AUTH_TOKEN_PATH, token, "utf-8");
+  try { chmodSync(AUTH_TOKEN_PATH, 0o600); } catch {}
   return token;
 }
 
@@ -96,6 +117,12 @@ function readConfig() {
 }
 
 function writeConfig(config) {
+  // Backup current config before overwriting
+  try {
+    if (existsSync(CONFIG_PATH)) {
+      copyFileSync(CONFIG_PATH, CONFIG_PATH + ".bak");
+    }
+  } catch {}
   writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
 }
 
@@ -118,6 +145,7 @@ function writeEnv(env) {
     .map(([k, v]) => `${k}=${v}`)
     .join("\n");
   writeFileSync(ENV_PATH, content + "\n", "utf-8");
+  try { chmodSync(ENV_PATH, 0o600); } catch {}
 }
 
 function maskValue(value) {
@@ -137,13 +165,25 @@ function readLogTail(filePath, maxLines = 120) {
   }
 
   let raw = "";
+  const MAX_LOG_BYTES = 512 * 1024; // 512 KB safety limit
 
   try {
     raw = execFileSync("tail", ["-n", String(maxLines), filePath], {
       encoding: "utf-8",
+      maxBuffer: MAX_LOG_BYTES,
     });
   } catch {
-    raw = readFileSync(filePath, "utf-8");
+    // Fallback: read only the last MAX_LOG_BYTES of the file
+    const stat = statSync(filePath);
+    if (stat.size > MAX_LOG_BYTES) {
+      const fd = require("node:fs").openSync(filePath, "r");
+      const buf = Buffer.alloc(MAX_LOG_BYTES);
+      require("node:fs").readSync(fd, buf, 0, MAX_LOG_BYTES, stat.size - MAX_LOG_BYTES);
+      require("node:fs").closeSync(fd);
+      raw = buf.toString("utf-8");
+    } else {
+      raw = readFileSync(filePath, "utf-8");
+    }
   }
 
   const lines = raw.split("\n");
@@ -200,14 +240,16 @@ function getLaunchctlStatus(label) {
 function getWindowsTaskInfo(taskName) {
   if (!IS_WINDOWS) return null;
 
+  // Sanitize task name to prevent PowerShell injection
+  const safeName = taskName.replace(/['"\\`$]/g, "");
   try {
     const script = `
-      $task = Get-ScheduledTask -TaskName '${taskName}' -ErrorAction SilentlyContinue
+      $task = Get-ScheduledTask -TaskName '${safeName}' -ErrorAction SilentlyContinue
       if ($null -eq $task) {
         @{ exists = $false; enabled = $false; state = 'missing'; lastRunTime = $null; lastTaskResult = $null } | ConvertTo-Json -Compress
         exit
       }
-      $info = Get-ScheduledTaskInfo -TaskName '${taskName}' -ErrorAction SilentlyContinue
+      $info = Get-ScheduledTaskInfo -TaskName '${safeName}' -ErrorAction SilentlyContinue
       @{
         exists = $true
         enabled = [bool]$task.Settings.Enabled
@@ -941,6 +983,12 @@ async function handleApi(req, res) {
     req.on("end", async () => {
       try {
         const { action, channelId, token } = JSON.parse(body);
+        if (!isValidChannelId(channelId)) {
+          return jsonResponse(res, { error: "Invalid channel ID" }, 400);
+        }
+        if (token && (typeof token !== "string" || token.length > MAX_TOKEN_LEN)) {
+          return jsonResponse(res, { error: "Invalid token" }, 400);
+        }
         const config = readConfig();
         if (!config) return jsonResponse(res, { error: "Config not found" }, 500);
 
@@ -1031,7 +1079,9 @@ async function handleApi(req, res) {
     req.on("end", () => {
       try {
         const { modelId, displayName } = JSON.parse(body);
-        if (!modelId) return jsonResponse(res, { error: "modelId required" }, 400);
+        if (!modelId || !isValidModelId(modelId)) {
+          return jsonResponse(res, { error: "Invalid modelId (alphanumeric, dots, hyphens, slashes only, max 128 chars)" }, 400);
+        }
         const config = readConfig();
         if (!config) return jsonResponse(res, { error: "Config not found" }, 500);
 
@@ -1115,7 +1165,13 @@ async function handleApi(req, res) {
   // GET /api/config/skill — read current SOUL.md + skill metadata
   if (path === "/api/config/skill" && req.method === "GET") {
     const config = readConfig();
-    const workspace = config?.agents?.defaults?.workspace || join(OPENCLAW_DIR, "workspace");
+    const rawWorkspace = config?.agents?.defaults?.workspace || join(OPENCLAW_DIR, "workspace");
+    // Prevent path traversal — resolve and ensure it's under OPENCLAW_DIR or HOME_DIR
+    const { resolve } = require("node:path");
+    const workspace = resolve(rawWorkspace);
+    if (!workspace.startsWith(resolve(OPENCLAW_DIR)) && !workspace.startsWith(resolve(HOME_DIR))) {
+      return jsonResponse(res, { error: "Invalid workspace path" }, 400);
+    }
     const soulPath = join(workspace, "SOUL.md");
     const meta = readSkillMeta();
     let soulContent = "";
@@ -1339,6 +1395,17 @@ function serveStatic(req, res) {
 // ── Server ─────────────────────────────────────────────────
 
 const server = createServer((req, res) => {
+  // Enforce request body size limit to prevent memory exhaustion
+  let bodySize = 0;
+  req.on("data", (chunk) => {
+    bodySize += chunk.length;
+    if (bodySize > MAX_BODY_BYTES) {
+      req.destroy();
+      res.writeHead(413, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Request body too large" }));
+    }
+  });
+
   if (req.url.startsWith("/api/")) {
     return handleApi(req, res);
   }
