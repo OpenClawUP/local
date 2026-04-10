@@ -1,133 +1,154 @@
 # OpenClawUP Local
 
-One-click install [OpenClaw](https://github.com/openclaw/openclaw) AI assistant on your computer.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-blue)]()
+[![Node.js](https://img.shields.io/badge/Node.js-22+-339933?logo=node.js&logoColor=white)]()
+
+**One-click install [OpenClaw](https://github.com/openclaw/openclaw) AI assistant on your computer.** Your own AI chatbot on Telegram, Discord, WhatsApp, Slack, and 15+ channels — running locally, completely under your control.
 
 > Want 24/7 uptime without keeping your computer on?
-> Try [OpenClawUP Cloud](https://openclawup.com) — deploy in 60 seconds, no technical setup needed. Free 3-day trial included.
+> Try [OpenClawUP Cloud](https://openclawup.com) — deploy in 60 seconds, no technical setup needed. Free trial included.
 
-## Install
+---
 
-### Option 1: Terminal (copy & paste)
+## Features
 
-macOS / Linux:
+- **2-minute setup** — one command, fully guided, no technical knowledge needed
+- **20+ chat channels** — Telegram, Discord, WhatsApp, Slack, Signal, and more
+- **All major AI models** — Claude, GPT, Gemini, DeepSeek, Qwen, or bring your own API key
+- **Skill Builder** — AI-generated bot personality, presets, or manual editing
+- **Web management UI** — start/stop, switch models, add channels, update — all from `localhost:8080`
+- **Auto-start on login** — runs as a background service, survives terminal close
+- **One-click updates** — OpenClaw + manager updated from the web UI
+
+---
+
+## Quick Start
+
+### macOS / Linux
 
 ```bash
 curl -fsSL https://openclawup.com/get | bash
 ```
 
-Windows PowerShell:
+### Windows (PowerShell)
 
 ```powershell
 powershell -ExecutionPolicy Bypass -Command "irm https://openclawup.com/get.ps1 | iex"
 ```
 
-### Option 2: Download & double-click
+### Download & double-click
 
-macOS: download [`install.command`](https://github.com/OpenClawUP/local/releases/latest/download/install.command), then double-click to run.
+| Platform | Download |
+|----------|----------|
+| macOS | [`install.command`](https://github.com/OpenClawUP/local/releases/latest/download/install.command) |
+| Windows | [`install.bat`](https://github.com/OpenClawUP/local/releases/latest/download/install.bat) |
 
-Windows: download [`install.bat`](https://github.com/OpenClawUP/local/releases/latest/download/install.bat), then double-click to run.
+---
 
-## What it does
+## What the installer does
 
-The installer will:
+1. **Pre-flight checks** — network, ports (18789/18790/8080), missing tools
+2. **Install Node.js 22+** — auto-detected, installed via Homebrew/apt/dnf/binary if missing
+3. **Install OpenClaw** — latest version via npm, auto-retries on failure
+4. **Configure channel** — guided setup for Telegram, Discord, WhatsApp, Slack, Signal
+5. **Set up AI** — bring your own API key, or use OpenClawUP proxy (pay-as-you-go)
+6. **Create default Skill** — starts with a helpful assistant persona
+7. **Start background service** — runs on login, survives terminal close
+8. **Launch management UI** — `http://localhost:8080` ready to use
 
-1. **Pre-flight checks** — Verifies network connectivity, checks port availability (18789/18790/8080), auto-installs missing tools (tar, xz, npm) on Linux
-2. **Check & install dependencies** — Node.js 22+ (auto-detected, installed if missing via Homebrew/apt/dnf/binary)
-3. **Install OpenClaw** — Latest version via npm (auto-retries once on failure)
-4. **Configure your channel** — Telegram, Discord, WhatsApp, Slack, Signal, and 15+ more
-5. **Set up AI** — Bring your own OpenAI-compatible API key, or use OpenClawUP AI proxy (pay-as-you-go, auto-routing)
-6. **Create a default Skill** — Your bot starts with a helpful assistant persona, customizable from the management page
-7. **Start as background service** — Runs automatically on sign-in, survives terminal close
-8. **Install management app** — Open `http://localhost:8080` or use the platform shortcut to manage everything
+---
 
 ## Skills
 
-Your bot's personality and behavior are defined by a **Skill** — a `SOUL.md` file in the OpenClaw workspace. The Skill Builder in the management page lets you:
+Your bot's personality is defined by a **Skill** — a `SOUL.md` file in the workspace. The management UI offers three ways to set it:
 
-- **Generate with AI** — Describe what you want your bot to do, and AI generates the perfect persona
-- **Use a preset** — One-click presets for common use cases (Writing Assistant, Code Helper, Customer Support, Study Buddy, Translator)
-- **Edit manually** — Full control over the `SOUL.md` content
+| Method | How |
+|--------|-----|
+| **AI-generated** | Describe what you want, AI writes the persona |
+| **Presets** | One-click: Writing Assistant, Code Helper, Customer Support, Study Buddy, Translator |
+| **Manual** | Edit `SOUL.md` directly — full control |
 
 Changes take effect on the next message — no restart needed.
 
-## Security
+---
 
-The management console is protected by a token-based authentication system. During installation, a unique access token is generated and displayed in the terminal:
+## Channels
 
-```
-🔑 Manager access token: a1b2c3d4e5f6...
-   Save this token — you'll need it to access http://localhost:8080
-```
+**Guided setup**: Telegram, Discord, Slack, WhatsApp, Signal
 
-When you first open the management page, you'll be asked to enter this token. The token is stored in your browser's local storage for convenience.
+**Add from manager UI**: IRC, Matrix, Mattermost, Microsoft Teams, Google Chat, LINE, Feishu, Twitch, Nostr, BlueBubbles, Synology Chat, Nextcloud Talk, Tlon, Zalo, WebChat
 
-The token file is stored at `~/.openclawup-local/auth-token`. Read-only endpoints (`GET /api/status` and `GET /api/logs`) are accessible without a token for monitoring purposes. All mutation endpoints require authentication.
+---
 
-If you lose your token, you can read it directly:
+## AI Models
 
-```bash
-cat ~/.openclawup-local/auth-token
-```
+| Mode | Description |
+|------|-------------|
+| **Bring your own key** | Any OpenAI-compatible API. Full control over models and providers. |
+| **OpenClawUP proxy** | Claude, GPT, Gemini, DeepSeek, Qwen, and more. Auto-routing picks the best model per task. Pay-as-you-go. |
+
+---
 
 ## Management
 
-After installation, manage your bot through the web interface:
-
-- Open the local shortcut created during install, or
-- Visit `http://localhost:8080`
+After installation, open `http://localhost:8080` (or the shortcut created during install).
 
 From the management page you can:
-
-- Customize your bot's Skill (personality and behavior)
+- Customize your bot's Skill
 - Start / Stop / Restart the bot
 - Add or remove chat channels
 - Switch AI models
 - Toggle auto-start on login
 - Check for and install updates
-- Top up OpenClawUP credits when using the proxy
+- Top up credits (when using OpenClawUP proxy)
 
-The manager reads available models from your current config, so BYOK setups only show the models you actually configured.
+---
 
-## Channels
+## Security
 
-Guided setup works best with Telegram, Discord, Slack, WhatsApp, and Signal.
+The management console is protected by token-based authentication. During installation, a unique access token is generated:
 
-You can also enable additional channels from the local manager, including IRC, Matrix, Mattermost, Microsoft Teams, Google Chat, LINE, Feishu, Twitch, Nostr, BlueBubbles, Synology Chat, Nextcloud Talk, Tlon, Zalo, and WebChat.
+```
+Manager access token: a1b2c3d4e5f6...
+Save this token — you'll need it to access http://localhost:8080
+```
 
-## AI Models
+- All mutation endpoints require the token (via `Authorization: Bearer` header or `?token=` param)
+- Read-only endpoints (`GET /api/status`, `GET /api/logs`) are open for monitoring
+- `.env` and token files are protected with `chmod 600` (owner-only read/write)
+- Config files are backed up before every write (`openclaw.json.bak`)
 
-**Bring your own key**: Use any OpenAI-compatible API key and endpoint. You have full control over which models and providers to use.
+Lost your token?
 
-**OpenClawUP AI proxy**: All major AI models available — Claude, GPT, Gemini, DeepSeek, Qwen, and more. Smart auto-routing picks the best model for each task by default. Pay-as-you-go, no upfront commitment.
+```bash
+cat ~/.openclawup-local/auth-token
+```
+
+---
 
 ## Updates
 
-The management page checks for updates automatically on each page load. When a new version is available, a notification bar appears at the top of the page with an "Update Now" button.
+The manager checks for updates automatically. When available, a notification bar appears with an **Update Now** button.
 
-Clicking "Update Now" will:
-
-1. Update OpenClaw to the latest version (`npm install -g openclaw@latest`)
-2. Download the latest manager files from GitHub (server.mjs + public/index.html)
-3. Prompt you to restart the manager service if needed (the page will auto-reload)
-
-To update manually from the terminal:
+Update manually from terminal:
 
 ```bash
 # Update OpenClaw
 npm install -g openclaw@latest
 
-# Update manager files
+# Update manager
 curl -fsSL "https://raw.githubusercontent.com/openclawup/local/main/manager/server.mjs" -o ~/.openclawup-local/server.mjs
 curl -fsSL "https://raw.githubusercontent.com/openclawup/local/main/manager/public/index.html" -o ~/.openclawup-local/public/index.html
 
-# Restart manager (macOS)
+# Restart manager
+# macOS:
 launchctl stop com.openclawup.manager && launchctl start com.openclawup.manager
-
-# Restart manager (Linux)
+# Linux:
 systemctl --user restart openclawup-manager.service
 ```
 
-The update check caches the GitHub API response for 1 hour to avoid rate limits.
+---
 
 ## Uninstall
 
@@ -145,28 +166,93 @@ powershell -ExecutionPolicy Bypass -Command "irm https://openclawup.com/uninstal
 
 Windows download: [`uninstall.bat`](https://github.com/OpenClawUP/local/releases/latest/download/uninstall.bat)
 
+---
+
+## Troubleshooting
+
+**Port 8080 is already in use**
+```bash
+# Find what's using it
+lsof -i :8080
+# Or change the port
+PORT=9090 node ~/.openclawup-local/server.mjs
+```
+
+**Bot not responding after install**
+```bash
+# Check status
+curl -s http://localhost:8080/api/status | jq .
+
+# Check logs
+curl -s http://localhost:8080/api/logs | jq '.gateway.content' -r | tail -20
+```
+
+**Node.js version too old**
+```bash
+node --version  # Need 22+
+# macOS: brew install node@22
+# Linux: see https://nodejs.org/en/download
+```
+
+**Service not starting on login (Linux)**
+```bash
+# Ensure user lingering is enabled
+loginctl enable-linger $USER
+systemctl --user status openclawup-openclaw.service
+```
+
+**Lost management token**
+```bash
+cat ~/.openclawup-local/auth-token
+```
+
+---
+
 ## Requirements
 
-- macOS 12+ (Intel or Apple Silicon)
-- Linux with systemd (Ubuntu 20.04+, Debian 11+, Fedora 36+, etc.)
-- Windows 10/11 with PowerShell 5.1+
-- Internet connection
+| Platform | Version |
+|----------|---------|
+| macOS | 12+ (Intel or Apple Silicon) |
+| Linux | systemd-based (Ubuntu 20.04+, Debian 11+, Fedora 36+) |
+| Windows | 10/11 with PowerShell 5.1+ |
 
-## How it compares to OpenClawUP Cloud
+Internet connection required for installation and AI model access.
+
+---
+
+## Local vs Cloud
 
 | | Local (this) | [Cloud](https://openclawup.com) |
 |---|---|---|
-| Price | Free (AI pay-as-you-go) | ~~$49~~ $39/mo launch special (incl. $15 AI credits) |
-| Free trial | N/A | 3 days + $3 AI credits |
-| Uptime | While your computer is on | 24/7 |
-| Setup | 2 minutes | 60 seconds |
-| Channels | All supported | All supported |
-| AI Models | All major models | All major models |
-| Skills | AI-generated + presets | AI-generated + presets |
-| Document search | — | Built-in QMD engine |
-| Management | Local web UI | Cloud dashboard |
-| Updates | One-click from manager | Automatic |
+| **Price** | Free (AI pay-as-you-go) | $39/mo (incl. $15 AI credits) |
+| **Free trial** | N/A | 7 days + $5 AI credits |
+| **Uptime** | While computer is on | 24/7 |
+| **Setup time** | ~2 minutes | ~60 seconds |
+| **Channels** | All 20+ supported | All 20+ supported |
+| **AI Models** | All major models | All major models |
+| **Skills** | AI-generated + presets | AI-generated + presets |
+| **Doc search** | — | Built-in QMD engine |
+| **Management** | Local web UI | Cloud dashboard |
+| **Updates** | One-click from manager | Automatic |
+| **Self-healing** | — | Watchdog + auto-repair |
+| **Terminal** | — | Browser-based terminal |
+| **Config backup** | — | Hourly git snapshots |
+
+---
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-improvement`)
+3. Test on your platform (macOS, Linux, or Windows)
+4. Submit a pull request
+
+For bugs or feature requests, [open an issue](https://github.com/OpenClawUP/local/issues).
+
+---
 
 ## License
 
-MIT
+[MIT](LICENSE)
