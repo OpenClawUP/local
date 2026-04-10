@@ -224,7 +224,7 @@ Internet connection required for installation and AI model access.
 
 | | Local (this) | [Cloud](https://openclawup.com) |
 |---|---|---|
-| **Price** | Free (AI pay-as-you-go) | $39/mo (incl. $15 AI credits) |
+| **Price** | Free (AI pay-as-you-go) | $39/mo (incl. $10 AI credits) |
 | **Free trial** | N/A | 7 days + $5 AI credits |
 | **Uptime** | While computer is on | 24/7 |
 | **Setup time** | ~2 minutes | ~60 seconds |
